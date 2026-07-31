@@ -148,15 +148,6 @@ export const scenarios: Scenario[] = [
   },
 ];
 
-export const quizQuestions = [
-  { questionFa: "کدام دستور فقط اطلاعات Remote را می‌گیرد و Working Directory را تغییر نمی‌دهد؟", options: ["git pull", "git fetch", "git clone", "git push"], answer: 1, whyFa: "Fetch فقط Remote-tracking refها را به‌روز می‌کند؛ Pull علاوه‌بر دریافت، شاخهٔ فعلی را هم به‌روزرسانی می‌کند." },
-  { questionFa: "فایلی را Stage کرده‌ای اما می‌خواهی تغییرهایش حفظ شود. انتخاب درست چیست؟", options: ["git restore app.js", "git reset --hard", "git restore --staged app.js", "git revert app.js"], answer: 2, whyFa: "restore --staged فایل را از Index خارج می‌کند اما محتوای Working Directory دست‌نخورده می‌ماند." },
-  { questionFa: "Commit دقیقاً از محتوای کدام ناحیه Snapshot می‌سازد؟", options: ["Working Directory", "Staging Area", "GitHub Remote", "Stash"], answer: 1, whyFa: "Commit فقط وضعیت Staging Area یا Index را ثبت می‌کند؛ نه تمام تغییرهای Working Directory را." },
-  { questionFa: "برای خنثی‌کردن یک Commit روی شاخهٔ اشتراکی، کدام گزینه امن‌تر است؟", options: ["git reset --hard", "git revert", "git rebase -i", "git push --force"], answer: 1, whyFa: "Revert تاریخچه را بازنویسی نمی‌کند و یک Commit تازه برای خنثی‌سازی می‌سازد." },
-  { questionFa: "چطور مطمئن می‌شویم Merge حتماً یک Node جدید با دو Parent بسازد؟", options: ["git merge --no-ff branch", "git merge --squash", "git rebase branch", "git pull branch"], answer: 0, whyFa: "گزینهٔ --no-ff حتی وقتی Fast-forward ممکن است، یک Merge Commit واقعی می‌سازد." },
-  { questionFa: "بعد از Rebase برای Push محافظت‌شدهٔ تاریخچهٔ جدید چه دستوری بهتر است؟", options: ["git push --force", "git push --force-with-lease", "git push --hard", "git push --reset"], answer: 1, whyFa: "force-with-lease فقط وقتی Push می‌کند که Remote از آخرین مشاهدهٔ شما تغییر نکرده باشد." },
-];
-
 export type CommandReference = {
   group: string;
   command: string;

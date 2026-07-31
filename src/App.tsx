@@ -1,12 +1,12 @@
 import { CSSProperties, FormEvent, useMemo, useRef, useState } from "react";
 import {
   commandReferences,
-  quizQuestions,
   scenarios,
   zones,
   type Scenario,
   type ZoneKey,
 } from "./data";
+import { quizModules } from "./quizData";
 
 type TerminalLine = {
   id: number;
@@ -71,6 +71,28 @@ function headsFromScenario(scenario: Scenario) {
   return heads;
 }
 
+function UsageGuide({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ title: string; text: string }>;
+}) {
+  return (
+    <aside className="usage-guide" lang="fa" dir="rtl">
+      <header className="fa"><span>راهنمای استفاده</span><b>{title}</b></header>
+      <div>
+        {items.map((item, index) => (
+          <article key={item.title}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div className="fa"><b>{item.title}</b><p>{item.text}</p></div>
+          </article>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 export default function App() {
   const initialScenario = scenarios[1];
   const [scenarioIndex, setScenarioIndex] = useState(1);
@@ -101,6 +123,7 @@ export default function App() {
   const [logs, setLogs] = useState<TerminalLine[]>([
     { id: 1, type: "info", text: "ماموریت آماده است؛ دستور قدم اول را اجرا کن." },
   ]);
+  const [quizModuleIndex, setQuizModuleIndex] = useState(0);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswer, setQuizAnswer] = useState<number | null>(null);
   const [quizPoints, setQuizPoints] = useState(0);
@@ -111,6 +134,9 @@ export default function App() {
   const activeScenario = scenarios[scenarioIndex];
   const missionProgress = orderedProgress(activeScenario.steps, history);
   const nextMissionStep = activeScenario.steps[missionProgress];
+  const activeQuizModule = quizModules[quizModuleIndex];
+  const activeQuizQuestions = activeQuizModule.questions;
+  const activeQuizQuestion = activeQuizQuestions[quizIndex];
 
   const branchNames = useMemo(
     () => unique(["main", ...branches, ...commits.map((commit) => commit.branch)]),
@@ -208,7 +234,7 @@ export default function App() {
     return node;
   };
 
-  const selectScenario = (index: number) => {
+  const selectScenario = (index: number, scrollToLab = true) => {
     const scenario = scenarios[index];
     setScenarioIndex(index);
     setInitialized(scenario.seed.initialized);
@@ -236,7 +262,9 @@ export default function App() {
           : "حالت آزاد فعال شد؛ هر دستور پشتیبانی‌شده‌ای را امتحان کن.",
       },
     ]);
-    document.querySelector("#mission-lab")?.scrollIntoView({ behavior: "smooth" });
+    if (scrollToLab) {
+      document.querySelector("#mission-lab")?.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const executeCommand = (raw: string) => {
@@ -673,15 +701,27 @@ export default function App() {
   const answerQuiz = (index: number) => {
     if (quizAnswer !== null) return;
     setQuizAnswer(index);
-    if (index === quizQuestions[quizIndex].answer) {
+    if (index === activeQuizQuestion.answer) {
       setQuizPoints((current) => current + 1);
       setScore((current) => current + 25);
     }
   };
 
   const nextQuiz = () => {
-    setQuizIndex((current) => (current + 1) % quizQuestions.length);
+    if (quizIndex === activeQuizQuestions.length - 1) {
+      setQuizIndex(0);
+      setQuizPoints(0);
+    } else {
+      setQuizIndex((current) => current + 1);
+    }
     setQuizAnswer(null);
+  };
+
+  const selectQuizModule = (index: number) => {
+    setQuizModuleIndex(index);
+    setQuizIndex(0);
+    setQuizAnswer(null);
+    setQuizPoints(0);
   };
 
   const graphWidth = Math.max(1080, branchNames.length * 230 + 240);
@@ -698,7 +738,7 @@ export default function App() {
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Git State Lab home">
           <span className="brand-cube">G</span>
-          <span><b>GIT STATE LAB</b><small>Interactive workshop environment</small></span>
+          <span><b>GIT STATE LAB</b><small>Workshop by Shokoufeh Akbari</small></span>
         </a>
         <nav aria-label="Primary navigation">
           <a href="#mission-lab">LAB</a>
@@ -713,28 +753,38 @@ export default function App() {
         <div className="hero-image" />
         <div className="hero-overlay" />
         <div className="hero-content">
-          <p className="eyebrow">VISUAL GIT WORKSHOP • LIVE STATE ENGINE</p>
-          <h1>SEE WHAT GIT<br /><span>ACTUALLY MOVES.</span></h1>
+          <p className="eyebrow">VISUAL GIT WORKSHOP • PRACTICE ENVIRONMENT</p>
+          <h1>LEARN GIT<br /><span>BY SEEING STATE.</span></h1>
           <p className="hero-fa fa" lang="fa" dir="rtl">
-            دستور را اجرا کن، مسیر واقعی تغییرها را ببین و به‌جای حفظ‌کردن، مدل ذهنی Git را بساز.
+            دستورها را در یک محیط امن اجرا کن، مسیر واقعی تغییرها را ببین و برای کار با Git یک مدل ذهنی دقیق بساز.
           </p>
+          <div className="instructor-tag"><span>INSTRUCTOR</span><b className="fa" lang="fa" dir="rtl">شکوفه اکبری</b></div>
           <div className="hero-actions">
             <a className="button primary" href="#mission-lab">START MISSION <span>↓</span></a>
-            <a className="button secondary" href="#reference">OPEN COMMAND MAP</a>
+            <a className="button secondary" href="#quiz">CHOOSE A QUIZ</a>
           </div>
           <div className="hero-metrics">
             <div><b>4</b><span>STATE ZONES</span></div>
             <div><b>3</b><span>GUIDED MISSIONS</span></div>
-            <div><b>32</b><span>COMMAND CARDS</span></div>
+            <div><b>90</b><span>LEVELLED QUESTIONS</span></div>
           </div>
         </div>
       </section>
 
       <section className="mission-lab section" id="mission-lab">
         <div className="section-title">
-          <div><span>01 / MISSION CONTROL</span><h2>CHOOSE A SCENARIO</h2></div>
-          <p className="fa" lang="fa" dir="rtl">با انتخاب هر مأموریت، صورت سؤال و State چهار ناحیه فوراً متناسب با همان سناریو بازسازی می‌شود.</p>
+          <div><span>01 / MISSION LAB</span><h2>PRACTICE WITH REAL STATES</h2></div>
+          <p className="fa" lang="fa" dir="rtl">هر مأموریت از یک وضعیت واقعی شروع می‌شود. هدف این است که قبل از اجرای دستور، بتوانی مقصد فایل و اثر آن روی تاریخچه را پیش‌بینی کنی.</p>
         </div>
+
+        <UsageGuide
+          title="از انتخاب مأموریت تا بررسی نتیجه"
+          items={[
+            { title: "سناریو را انتخاب کن", text: "صورت مسئله را بخوان؛ چهار ناحیه با فایل‌های مخصوص همان مأموریت آماده می‌شوند." },
+            { title: "دستور را اجرا کن", text: "فرمان را در Terminal بنویس یا از دکمهٔ پیشنهادشده استفاده کن. مسیر حرکت دقیقاً روی Stateها نمایش داده می‌شود." },
+            { title: "State را بررسی کن", text: "فایل‌ها داخل ناحیهٔ مقصد باقی می‌مانند. قبل از قدم بعدی، Working، Staging، Local و Remote را با هم مقایسه کن." },
+          ]}
+        />
 
         <div className="scenario-tabs" role="tablist" aria-label="Mission scenarios">
           {scenarios.map((scenario, index) => (
@@ -776,7 +826,7 @@ export default function App() {
               return (
                 <article className={state} key={step.command}>
                   <span>{index < missionProgress ? "✓" : String(index + 1).padStart(2, "0")}</span>
-                  <div className="fa" lang="fa" dir="rtl"><b>{step.labelFa}</b><small>{state === "current" ? "قدم بعدی" : state === "done" ? "انجام شد" : "در انتظار"}</small></div>
+                  <div className="fa" lang="fa" dir="rtl"><b>{step.labelFa}</b><code dir="ltr">{step.command}</code><small>{state === "current" ? "قدم بعدی" : state === "done" ? "انجام شد" : "در انتظار"}</small></div>
                   <button onClick={() => copy(step.command)} type="button" title="Copy command">{copied === step.command ? "✓" : "COPY"}</button>
                 </article>
               );
@@ -819,6 +869,12 @@ export default function App() {
                 <div className="zone-chamber">
                   <div className="zone-glyph">{zone.glyph}</div>
                   <div className="zone-beam" />
+                  <div className="zone-files">
+                    <small>FILES IN THIS STATE</small>
+                    {zoneFiles[zone.id].length ? zoneFiles[zone.id].map((file) => (
+                      <span key={file}><i />{file}</span>
+                    )) : <em>NO FILES HERE</em>}
+                  </div>
                 </div>
                 <h3>{zone.title}</h3>
                 <p className="fa" lang="fa" dir="rtl">{zone.helperFa}</p>
@@ -826,11 +882,6 @@ export default function App() {
                   <div className="zone-meta"><span>HEAD → {currentBranch}</span>{fetchedRef && <span>origin/main fetched</span>}</div>
                 )}
                 {zone.id === "remote" && <div className="zone-meta"><span>origin/main</span></div>}
-                <div className="zone-files">
-                  {zoneFiles[zone.id].length ? zoneFiles[zone.id].map((file) => (
-                    <span key={file}><i />{file}</span>
-                  )) : <em>NO PENDING ITEMS</em>}
-                </div>
               </article>
             );
           })}
@@ -864,8 +915,8 @@ export default function App() {
           </form>
           <div className="command-suggestions">
             <span>SUGGESTED</span>
-            {(nextMissionStep ? [nextMissionStep.command, ...genericCommands.slice(0, 5)] : genericCommands).map((item) => (
-              <button key={item} onClick={() => executeCommand(item)} type="button">{item}</button>
+            {(nextMissionStep ? [nextMissionStep.command, ...genericCommands.slice(0, 5)] : genericCommands).map((item, index) => (
+              <button className={nextMissionStep && index === 0 ? "next-command" : ""} key={`${item}-${index}`} onClick={() => executeCommand(item)} type="button">{nextMissionStep && index === 0 ? `NEXT → ${item}` : item}</button>
             ))}
           </div>
         </div>
@@ -873,14 +924,47 @@ export default function App() {
 
       <section className="graph-section section" id="graph">
         <div className="section-title">
-          <div><span>02 / HISTORY ENGINE</span><h2>BRANCH & COMMIT GRAPH</h2></div>
-          <p className="fa" lang="fa" dir="rtl">هر Commit یک Node می‌سازد. Branch فقط یک Pointer است و Merge با گزینهٔ no-ff یک Node با دو والد ایجاد می‌کند.</p>
+          <div><span>02 / HISTORY LAB</span><h2>BUILD THE COMMIT GRAPH</h2></div>
+          <p className="fa" lang="fa" dir="rtl">در این بخش خودت تاریخچه را می‌سازی: Branch یک اشاره‌گر است، Commit یک Node جدید می‌سازد و Merge Commit دو مسیر را به هم متصل می‌کند.</p>
         </div>
+        <UsageGuide
+          title="گراف را با دستور واقعی بساز"
+          items={[
+            { title: "آزمایشگاه Branch را آماده کن", text: "دکمهٔ Load را بزن تا یک Commit پایه روی main ساخته شود و فایل app.js برای تغییر آماده باشد." },
+            { title: "فرمان روشن را اجرا کن", text: "دستورهای Branch، Add، Commit و Merge به‌ترتیب فعال می‌شوند؛ هر فرمان مستقیماً State و Graph را تغییر می‌دهد." },
+            { title: "Node و Pointer را بخوان", text: "دایره‌ها Commit هستند، رنگ‌ها مسیر Branch را نشان می‌دهند و حلقهٔ خط‌چین جای HEAD را مشخص می‌کند." },
+          ]}
+        />
         <div className="graph-toolbar">
           <div className="branch-legend">
             {branchNames.map((branch) => <span key={branch}><i style={{ background: branchColor(branch) }} />{branch}{branch === currentBranch && <b>HEAD</b>}</span>)}
           </div>
-          <button onClick={() => selectScenario(3)} type="button">LOAD BRANCH MISSION</button>
+          <button onClick={() => selectScenario(3, false)} type="button">{scenarioIndex === 3 ? "RESET BRANCH LAB" : "LOAD BRANCH LAB"}</button>
+        </div>
+        <div className="graph-command-lab">
+          <header>
+            <div><span>GUIDED GRAPH SEQUENCE</span><b>{scenarioIndex === 3 ? `${missionProgress}/${scenarios[3].steps.length} COMPLETE` : "NOT LOADED"}</b></div>
+            <p className="fa" lang="fa" dir="rtl">برای ساخت گراف، فرمان فعال را اجرا کن. بعد از هر Commit یک Node تازه همان لحظه ظاهر می‌شود.</p>
+          </header>
+          <div className="graph-command-sequence">
+            {scenarios[3].steps.map((step, index) => {
+              const done = scenarioIndex === 3 && index < missionProgress;
+              const current = scenarioIndex === 3 && index === missionProgress;
+              return (
+                <button
+                  className={done ? "done" : current ? "current" : "locked"}
+                  disabled={!current}
+                  key={step.command}
+                  onClick={() => executeCommand(step.command)}
+                  type="button"
+                >
+                  <span>{done ? "✓" : String(index + 1).padStart(2, "0")}</span>
+                  <code>{step.command}</code>
+                </button>
+              );
+            })}
+          </div>
+          <footer><span>LAST GRAPH EFFECT</span><b>{lastEffect}</b></footer>
         </div>
         <div className="graph-stage">
           {commits.length ? (
@@ -911,10 +995,20 @@ export default function App() {
                 const y = commitY(index);
                 const color = branchColor(commit.branch);
                 const isHead = branchHeads[currentBranch] === commit.id;
+                const pointers = branchNames.filter((branch) => branchHeads[branch] === commit.id);
                 return (
                   <g key={commit.id}>
                     {isHead && <circle cx={x} cy={y} fill="none" r="24" stroke={color} strokeDasharray="4 5" strokeWidth="2" />}
                     <circle cx={x} cy={y} fill="#061210" r={commit.kind === "merge" ? 13 : 10} stroke={color} strokeWidth="5" />
+                    {pointers.map((branch, pointerIndex) => {
+                      const pointerWidth = Math.max(92, branch.length * 8 + (branch === currentBranch ? 54 : 24));
+                      return (
+                        <g className="graph-pointer" key={branch} transform={`translate(${x + 23}, ${y - 53 - pointerIndex * 29})`}>
+                          <rect fill="#0b1a15" height="22" rx="5" stroke={branchColor(branch)} width={pointerWidth} />
+                          <text fill={branchColor(branch)} x="9" y="15">{branch}{branch === currentBranch ? " • HEAD" : ""}</text>
+                        </g>
+                      );
+                    })}
                     <text className="graph-branch" fill={color} x={x + 24} y={y - 12}>{commit.branch}</text>
                     <text className="graph-message" fill="#edf8f3" x={x + 24} y={y + 8}>{commit.message}</text>
                     <text className="graph-hash" fill="#799089" x={x + 24} y={y + 28}>{commit.id} • {commit.kind.toUpperCase()}</text>
@@ -937,19 +1031,51 @@ export default function App() {
       </section>
 
       <section className="quiz-section section" id="quiz">
-        <div className="section-title centered">
-          <div><span>03 / KNOWLEDGE CHECK</span><h2>QUIZ ARENA</h2></div>
-          <p className="fa" lang="fa" dir="rtl">هر سؤال یک بخش کامل دارد؛ پاسخ را انتخاب کن و دلیل درست را همان لحظه ببین.</p>
+        <div className="section-title">
+          <div><span>03 / COURSE QUIZZES</span><h2>TEST YOUR GIT MODEL</h2></div>
+          <p className="fa" lang="fa" dir="rtl">یکی از شش بخش ورکشاپ را انتخاب کن. هر بخش ۱۵ سؤال دارد و از مفاهیم پایه شروع می‌شود و به موقعیت‌های چالشی می‌رسد.</p>
         </div>
-        <div className="quiz-progress"><i style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div>
+        <UsageGuide
+          title="آزمون متناسب با بخش دوره"
+          items={[
+            { title: "بخش دوره را انتخاب کن", text: "برای هر سرفصل یک آزمون مستقل ۱۵ سؤالی طراحی شده است؛ امتیاز هر بخش جداگانه محاسبه می‌شود." },
+            { title: "سطح سؤال را ببین", text: "پنج سؤال اول Beginner، پنج سؤال بعد Intermediate و پنج سؤال آخر Challenge هستند." },
+            { title: "دلیل پاسخ را بخوان", text: "بعد از انتخاب گزینه، فقط درست یا غلط نمی‌بینی؛ توضیح مدل ذهنی درست هم نمایش داده می‌شود." },
+          ]}
+        />
+        <div className="quiz-modules" role="tablist" aria-label="Quiz course sections">
+          {quizModules.map((module, index) => (
+            <button
+              className={quizModuleIndex === index ? "active" : ""}
+              key={module.id}
+              onClick={() => selectQuizModule(index)}
+              role="tab"
+              type="button"
+            >
+              <span>{module.number}</span>
+              <div><b>{module.label}</b><strong className="fa" lang="fa" dir="rtl">{module.titleFa}</strong></div>
+              <i>15 QUESTIONS</i>
+            </button>
+          ))}
+        </div>
+        <div className="quiz-selection-summary">
+          <div><span>SELECTED SECTION</span><b>{activeQuizModule.label}</b></div>
+          <p className="fa" lang="fa" dir="rtl">{activeQuizModule.descriptionFa}</p>
+        </div>
+        <div className="quiz-progress"><i style={{ width: `${((quizIndex + 1) / activeQuizQuestions.length) * 100}%` }} /></div>
         <article className="quiz-card">
-          <header><span>QUESTION {String(quizIndex + 1).padStart(2, "0")}</span><b>{quizPoints}/{quizQuestions.length} CORRECT</b></header>
-          <h3 className="fa" lang="fa" dir="rtl">{quizQuestions[quizIndex].questionFa}</h3>
+          <header>
+            <span>QUESTION {String(quizIndex + 1).padStart(2, "0")} / {activeQuizQuestions.length}</span>
+            <i className={`level-${activeQuizQuestion.level.toLowerCase()}`}>{activeQuizQuestion.level}</i>
+            <b>{quizPoints}/{activeQuizQuestions.length} CORRECT</b>
+          </header>
+          <h3 className="fa" lang="fa" dir="rtl">{activeQuizQuestion.questionFa}</h3>
           <div className="quiz-options">
-            {quizQuestions[quizIndex].options.map((option, index) => {
+            {activeQuizQuestion.options.map((option, index) => {
               const answered = quizAnswer !== null;
-              const correct = index === quizQuestions[quizIndex].answer;
+              const correct = index === activeQuizQuestion.answer;
               const selected = index === quizAnswer;
+              const isPersian = /[\u0600-\u06ff]/.test(option);
               return (
                 <button
                   className={`${answered && correct ? "correct" : ""} ${answered && selected && !correct ? "wrong" : ""}`}
@@ -957,34 +1083,42 @@ export default function App() {
                   onClick={() => answerQuiz(index)}
                   type="button"
                 >
-                  <span>{String.fromCharCode(65 + index)}</span><code>{option}</code>{answered && correct && <i>✓</i>}
+                  <span>{String.fromCharCode(65 + index)}</span><code className={isPersian ? "fa" : ""} dir={isPersian ? "rtl" : "ltr"}>{option}</code>{answered && correct && <i>✓</i>}
                 </button>
               );
             })}
           </div>
           {quizAnswer !== null && (
-            <div className={`quiz-feedback ${quizAnswer === quizQuestions[quizIndex].answer ? "good" : "bad"}`}>
-              <b>{quizAnswer === quizQuestions[quizIndex].answer ? "CORRECT • +25 XP" : "NOT QUITE • REVIEW THE MODEL"}</b>
-              <p className="fa" lang="fa" dir="rtl">{quizQuestions[quizIndex].whyFa}</p>
+            <div className={`quiz-feedback ${quizAnswer === activeQuizQuestion.answer ? "good" : "bad"}`}>
+              <b>{quizAnswer === activeQuizQuestion.answer ? "CORRECT • +25 XP" : "NOT QUITE • READ THE EXPLANATION"}</b>
+              <p className="fa" lang="fa" dir="rtl">{activeQuizQuestion.whyFa}</p>
             </div>
           )}
-          <footer><span>{quizIndex + 1} OF {quizQuestions.length}</span><button disabled={quizAnswer === null} onClick={nextQuiz} type="button">NEXT QUESTION →</button></footer>
+          <footer><span>{activeQuizModule.number} • {activeQuizModule.label}</span><button disabled={quizAnswer === null} onClick={nextQuiz} type="button">{quizIndex === activeQuizQuestions.length - 1 ? "RESTART SECTION ↻" : "NEXT QUESTION →"}</button></footer>
         </article>
       </section>
 
       <section className="roadmap-section section">
         <div className="section-title">
-          <div><span>04 / COURSE MAP</span><h2>FROM LOCAL STATE TO AUTOMATION</h2></div>
-          <p className="fa" lang="fa" dir="rtl">نقشهٔ کامل ورکشاپ؛ از مفاهیم پایه و تاریخچه تا همکاری تیمی و GitHub Actions.</p>
+          <div><span>04 / LEARNING PATH</span><h2>YOUR WORKSHOP ROADMAP</h2></div>
+          <p className="fa" lang="fa" dir="rtl">این نقشه ترتیب یادگیری دوره را نشان می‌دهد؛ هر مرحله روی دانشی ساخته می‌شود که در مرحلهٔ قبل تمرین کرده‌ای.</p>
         </div>
         <figure><img src="/course-roadmap.png" alt="نقشه راه فارسی ورکشاپ Git و GitHub" /><figcaption>THE COMPLETE WORKSHOP ROADMAP</figcaption></figure>
       </section>
 
       <section className="reference-section section" id="reference">
         <div className="section-title">
-          <div><span>05 / COMMAND REFERENCE</span><h2>READABLE. SEARCHABLE. COPYABLE.</h2></div>
-          <p className="fa" lang="fa" dir="rtl">فونت دستورها بزرگ‌تر است و هر کارت مسیر اثر، سطح ریسک و توضیح فارسی روشن دارد.</p>
+          <div><span>05 / COMMAND REFERENCE</span><h2>UNDERSTAND EACH COMMAND</h2></div>
+          <p className="fa" lang="fa" dir="rtl">این بخش فقط فهرست دستورها نیست؛ برای هر فرمان می‌بینی از کدام State می‌خواند، کدام State را تغییر می‌دهد و چه زمانی باید با احتیاط اجرا شود.</p>
         </div>
+        <UsageGuide
+          title="از Reference برای مرور و تمرین استفاده کن"
+          items={[
+            { title: "گروه را محدود کن", text: "با انتخاب Setup، Local، Undo، Branch، Remote یا Team فقط دستورهای همان موضوع را ببین." },
+            { title: "اثر State را بخوان", text: "عبارت State Effect مسیر واقعی دستور را خلاصه می‌کند؛ قبل از کپی‌کردن، آن را پیش‌بینی کن." },
+            { title: "سطح ریسک را جدی بگیر", text: "Safe فقط می‌خواند یا تغییر قابل بازگشت دارد؛ Careful نیازمند بررسی است و Danger می‌تواند تاریخچه یا داده را بازنویسی کند." },
+          ]}
+        />
         <div className="reference-tools">
           <label><span>⌕</span><input aria-label="Search commands" onChange={(event) => setReferenceQuery(event.target.value)} placeholder="Search command or concept..." value={referenceQuery} /></label>
           <div>
@@ -1007,8 +1141,8 @@ export default function App() {
       </section>
 
       <footer className="site-footer">
-        <div className="brand"><span className="brand-cube">G</span><span><b>GIT STATE LAB</b><small>Built for learning by doing</small></span></div>
-        <p className="fa" lang="fa" dir="rtl">هر دستور باید یک تغییر قابل توضیح در State ایجاد کند؛ اگر نمی‌کند، اول مدل ذهنی را بررسی کن.</p>
+        <div className="brand"><span className="brand-cube">G</span><span><b>GIT STATE LAB</b><small>Learn by doing, verify by state</small></span></div>
+        <div className="footer-credit"><span>WORKSHOP INSTRUCTOR</span><b className="fa" lang="fa" dir="rtl">شکوفه اکبری</b><p className="fa" lang="fa" dir="rtl">طراحی‌شده برای یادگیری عملی Git و GitHub</p></div>
         <a href="#top">BACK TO TOP ↑</a>
       </footer>
     </main>
