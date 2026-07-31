@@ -1,67 +1,37 @@
-# Git Portal Lab
+# Git Portal Lab — Vercel Ready
 
-یک آزمایشگاه تعاملی و فارسی برای آموزش Git و GitHub؛ دانشجو دستورها را در ترمینال شبیه‌سازی‌شده اجرا می‌کند و حرکت فایل‌ها را میان چهار ناحیه می‌بیند:
+نسخهٔ Vite + React و آمادهٔ دیپلوی مستقیم روی Vercel.
 
-- Working Directory
-- Staging Area
-- Local Repository
-- GitHub Remote
+## دیپلوی بدون اجرای npm روی Windows
 
-## امکانات
+1. همهٔ فایل‌ها را در یک Repository روی GitHub قرار دهید.
+2. وارد [vercel.com/new](https://vercel.com/new) شوید.
+3. حساب GitHub را متصل و Repository را Import کنید.
+4. Vercel به‌صورت خودکار Vite را تشخیص می‌دهد.
+5. روی **Deploy** کلیک کنید.
 
-- Playground آزاد با بیش از ۳۰ دستور و سناریوی آموزشی
-- جابه‌جایی تصویری فایل‌ها متناسب با `add`، `commit`، `push`، `fetch`، `pull`، `restore` و `reset`
-- مأموریت‌های مرحله‌ای و سیستم XP
-- آزمون تعاملی با بازخورد مفهومی
-- گراف زندهٔ Branch، Commit، Merge و Rebase
-- مرجع قابل جست‌وجو و کپی دستورها
-- رابط فارسی RTL و واکنش‌گرا
+تنظیمات آماده هستند:
 
-## اجرای محلی
+```text
+Build Command: npm run build
+Output Directory: dist
+```
 
-نیازمندی: Node.js نسخهٔ 22.13 یا جدیدتر
+هر Push بعدی به `main` به‌صورت خودکار Deploy می‌شود.
+
+## اجرای محلی اختیاری
 
 ```bash
 npm ci
 npm run dev
 ```
 
-آدرسی که Vite در ترمینال نمایش می‌دهد را در مرورگر باز کنید.
+## امکانات
 
-## بررسی نسخهٔ Production
-
-```bash
-npm run build
-```
-
-## قراردادن در GitHub
-
-پس از خارج‌کردن فایل‌ها از ZIP، داخل پوشهٔ پروژه اجرا کنید:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: Git Portal Lab"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/git-portal-lab.git
-git push -u origin main
-```
-
-قبل از اجرای دو دستور آخر، یک Repository خالی به نام `git-portal-lab` در GitHub بسازید و `YOUR_USERNAME` را تغییر دهید.
-
-## GitHub Actions
-
-فایل `.github/workflows/ci.yml` با هر Push و Pull Request نصب وابستگی‌ها و Build پروژه را بررسی می‌کند.
-
-## ساختار اصلی
-
-```text
-app/page.tsx       رابط و منطق شبیه‌ساز
-app/globals.css    طراحی و انیمیشن‌ها
-public/            تصاویر دوره
-.github/workflows  فرایند CI
-```
-
-## نکته
-
-این پروژه شبیه‌ساز آموزشی است و دستورها را روی فایل‌های واقعی سیستم کاربر اجرا نمی‌کند.
+- Playground تعاملی چهار ناحیهٔ Git
+- حرکت تصویری فایل‌ها متناسب با دستورها
+- مأموریت‌های مرحله‌ای و XP
+- آزمون مفهومی
+- گراف زندهٔ Branch و Commit
+- مرجع قابل جست‌وجو و کپی دستورها
+- رابط فارسی RTL و واکنش‌گرا

@@ -1,5 +1,3 @@
-"use client";
-
 import { FormEvent, useMemo, useRef, useState } from "react";
 
 type ZoneKey = "working" | "staging" | "local" | "remote";
