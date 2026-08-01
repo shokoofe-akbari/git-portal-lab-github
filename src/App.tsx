@@ -1,606 +1,598 @@
-import { type FormEvent, useMemo, useState } from "react";
-import { commandReferences } from "./data";
-import { graphScenarios } from "./graphData";
-import { orderMissions, type MissionLevel } from "./missionData";
-import { quizModules } from "./quizData";
+import { FormEvent, useMemo, useRef, useState } from "react";
+import { commandGroups, missions, modules, quizQuestions, type Level, type Mission, type QuizQuestion } from "./data";
 
-type CommitKind = "commit" | "merge" | "squash" | "rebase";
+type Tab = "home" | "playground" | "graph" | "quiz" | "roadmap" | "reference";
+type Zone = "working" | "staging" | "local" | "remote";
+type LabFile = { id: number; name: string; zone: Zone };
+type GraphNode = { id: string; message: string; branch: string; parents: string[]; order: number };
+type GraphState = { nodes: GraphNode[]; branches: Record<string, string>; current: string };
+type Celebration = { title: string; xp: number; subtitle: string } | null;
 
-type GraphNode = {
-  id: string;
-  message: string;
-  branch: string;
-  parents: string[];
-  kind: CommitKind;
-};
+const tabs: { id: Tab; label: string; fa: string; icon: string }[] = [
+  { id: "home", label: "HOME", fa: "شروع", icon: "⌂" },
+  { id: "playground", label: "STATE LAB", fa: "چهار در", icon: "◫" },
+  { id: "graph", label: "GIT GRAPH", fa: "گراف", icon: "⑂" },
+  { id: "quiz", label: "QUIZ + ORDER", fa: "آزمون", icon: "✓" },
+  { id: "roadmap", label: "ROADMAP", fa: "مسیر", icon: "↗" },
+  { id: "reference", label: "COMMANDS", fa: "دستورات", icon: ">_" },
+];
 
-type GraphState = {
-  nodes: GraphNode[];
-  branches: string[];
-  heads: Record<string, string | null>;
-  currentBranch: string;
-  serial: number;
-  notice: string;
-};
+const contacts = [
+  { label: "GITHUB", handle: "shokoofe-akbari", href: "https://github.com/shokoofe-akbari", icon: "GH" },
+  { label: "LINKEDIN", handle: "shokoofeh-akbari", href: "https://www.linkedin.com/in/shokoofeh-akbari", icon: "IN" },
+  { label: "INSTAGRAM", handle: "shokoofeh.akbari_com", href: "https://www.instagram.com/shokoofeh.akbari_com", icon: "IG" },
+  { label: "BUGCHARM", handle: "bugcharm.com", href: "https://www.bugcharm.com", icon: "WWW" },
+  { label: "TELEGRAM", handle: "@BugCharm", href: "https://t.me/BugCharm", icon: "TG" },
+];
 
-const emptyGraph = (): GraphState => ({
-  nodes: [],
-  branches: ["main"],
-  heads: { main: null },
-  currentBranch: "main",
-  serial: 1,
-  notice: "Graph is empty — execute the first Commit command.",
-});
+const graphScenarios = [
+  {
+    id: "feature",
+    title: "REAL FEATURE FLOW",
+    fa: "دو شاخه و Merge واقعی",
+    commands: ["git commit -m \"chore: baseline\"", "git commit -m \"feat: shell\"", "git switch -c feature/cart", "git commit -m \"feat: cart model\"", "git commit -m \"test: cart\"", "git switch main", "git commit -m \"fix: pricing\"", "git switch feature/cart", "git commit -m \"feat: cart UI\"", "git switch main", "git merge --no-ff feature/cart"],
+  },
+  {
+    id: "ff",
+    title: "FAST-FORWARD",
+    fa: "ادغام بدون Merge Commit",
+    commands: ["git commit -m \"initial\"", "git switch -c feature/docs", "git commit -m \"docs: intro\"", "git commit -m \"docs: api\"", "git switch main", "git merge feature/docs"],
+  },
+  {
+    id: "three-way",
+    title: "THREE-WAY MERGE",
+    fa: "تاریخچهٔ واگرا و دو Parent",
+    commands: ["git commit -m \"initial\"", "git switch -c feature/auth", "git commit -m \"feat: login\"", "git switch main", "git commit -m \"fix: config\"", "git switch feature/auth", "git commit -m \"test: login\"", "git switch main", "git merge feature/auth"],
+  },
+  {
+    id: "squash",
+    title: "SQUASH MERGE",
+    fa: "چند Commit به یک Snapshot",
+    commands: ["git commit -m \"initial\"", "git switch -c feature/ui", "git commit -m \"feat: header\"", "git commit -m \"feat: footer\"", "git commit -m \"style: responsive\"", "git switch main", "git merge --squash feature/ui"],
+  },
+  {
+    id: "rebase",
+    title: "REBASE",
+    fa: "بازپخش Feature روی main",
+    commands: ["git commit -m \"initial\"", "git switch -c feature/search", "git commit -m \"feat: search\"", "git commit -m \"test: search\"", "git switch main", "git commit -m \"fix: security\"", "git switch feature/search", "git rebase main"],
+  },
+];
 
-const graphColors = ["#62f59b", "#52cfff", "#bd73ff", "#ffc453", "#ff7c79", "#58e5d4"];
+const initialGraph = (): GraphState => ({ nodes: [], branches: { main: "" }, current: "main" });
 
-function unique<T>(items: T[]) {
-  return Array.from(new Set(items));
-}
-
-function hashFromSerial(serial: number) {
-  return (0x8d21a0 + serial * 0x91f3).toString(16).slice(-7).padStart(7, "0");
-}
-
-function isAncestor(ancestor: string | null, descendant: string | null, nodes: GraphNode[]) {
-  if (!ancestor || !descendant) return false;
-  const stack = [descendant];
-  const visited = new Set<string>();
-  while (stack.length) {
-    const id = stack.pop()!;
-    if (id === ancestor) return true;
-    if (visited.has(id)) continue;
-    visited.add(id);
-    const node = nodes.find((item) => item.id === id);
-    if (node) stack.push(...node.parents);
-  }
-  return false;
-}
-
-function nearestCommonAncestor(first: string | null, second: string | null, nodes: GraphNode[]) {
-  if (!first || !second) return null;
-  const firstAncestors = new Set<string>();
-  const stack = [first];
-  while (stack.length) {
-    const id = stack.pop()!;
-    if (firstAncestors.has(id)) continue;
-    firstAncestors.add(id);
-    const node = nodes.find((item) => item.id === id);
-    if (node) stack.push(...node.parents);
-  }
-  let cursor: string | null = second;
-  while (cursor) {
-    if (firstAncestors.has(cursor)) return cursor;
-    cursor = nodes.find((item) => item.id === cursor)?.parents[0] ?? null;
-  }
-  return null;
-}
-
-function applyGraphCommand(source: GraphState, rawCommand: string): GraphState {
-  const command = rawCommand.trim().replace(/\s+/g, " ");
-  const nodes = [...source.nodes];
-  const branches = [...source.branches];
-  const heads = { ...source.heads };
-  let currentBranch = source.currentBranch;
-  let serial = source.serial;
-  let notice = "";
-
-  const createNode = (message: string, branch: string, parents: string[], kind: CommitKind) => {
-    const node: GraphNode = {
-      id: hashFromSerial(serial),
-      message,
-      branch,
-      parents: unique(parents.filter(Boolean)),
-      kind,
-    };
-    serial += 1;
-    nodes.push(node);
-    heads[branch] = node.id;
-    return node;
-  };
-
-  const commitMatch = command.match(/^git commit -m ["'](.+)["']$/);
-  if (commitMatch) {
-    const parent = heads[currentBranch];
-    const node = createNode(commitMatch[1], currentBranch, parent ? [parent] : [], "commit");
-    notice = `COMMIT ${node.id} created on ${currentBranch}.`;
-  } else if (/^git switch -c /.test(command)) {
-    const branch = command.slice("git switch -c ".length).trim();
-    if (branches.includes(branch)) {
-      notice = `Branch ${branch} already exists.`;
-    } else {
-      branches.push(branch);
-      heads[branch] = heads[currentBranch] ?? null;
-      currentBranch = branch;
-      notice = `New pointer ${branch} created at current HEAD.`;
-    }
-  } else if (/^git switch /.test(command)) {
-    const branch = command.slice("git switch ".length).trim();
-    if (!branches.includes(branch)) {
-      notice = `Branch ${branch} does not exist.`;
-    } else {
-      currentBranch = branch;
-      notice = `HEAD switched to ${branch}.`;
-    }
-  } else if (/^git merge /.test(command)) {
-    const squash = command.includes("--squash");
-    const noFastForward = command.includes("--no-ff");
-    const target = command.replace(/^git merge(?: --squash| --no-ff)? /, "").trim();
-    const currentHead = heads[currentBranch];
-    const targetHead = heads[target];
-
-    if (!branches.includes(target) || target === currentBranch || !targetHead) {
-      notice = "Choose another Branch with at least one Commit.";
-    } else if (squash) {
-      const node = createNode(`squash: ${target}`, currentBranch, currentHead ? [currentHead] : [], "squash");
-      notice = `SQUASH ${node.id}: combined ${target} changes into one single-parent Commit.`;
-    } else if (noFastForward) {
-      const node = createNode(`merge ${target}`, currentBranch, [currentHead, targetHead].filter(Boolean) as string[], "merge");
-      notice = `NO-FF MERGE ${node.id}: two-parent node created.`;
-    } else if (!currentHead || isAncestor(currentHead, targetHead, nodes)) {
-      heads[currentBranch] = targetHead;
-      notice = `FAST-FORWARD: ${currentBranch} pointer moved to ${targetHead}; no node created.`;
-    } else if (isAncestor(targetHead, currentHead, nodes)) {
-      notice = `${currentBranch} already contains ${target}. No node was needed.`;
-    } else {
-      const node = createNode(`merge ${target}`, currentBranch, [currentHead, targetHead], "merge");
-      notice = `THREE-WAY MERGE ${node.id}: diverged histories joined with two parents.`;
-    }
-  } else if (/^git rebase /.test(command)) {
-    const target = command.slice("git rebase ".length).trim();
-    const currentHead = heads[currentBranch];
-    const targetHead = heads[target];
-    if (!targetHead || !currentHead || target === currentBranch) {
-      notice = "Rebase needs another Branch with a valid HEAD.";
-    } else {
-      const base = nearestCommonAncestor(currentHead, targetHead, nodes);
-      const uniqueNodes: GraphNode[] = [];
-      let cursor: string | null = currentHead;
-      while (cursor && cursor !== base) {
-        const node = nodes.find((item) => item.id === cursor);
-        if (!node) break;
-        uniqueNodes.push(node);
-        cursor = node.parents[0] ?? null;
-      }
-      let replayParent = targetHead;
-      for (const oldNode of uniqueNodes.reverse()) {
-        const replayed = createNode(oldNode.message, currentBranch, [replayParent], "rebase");
-        replayParent = replayed.id;
-      }
-      heads[currentBranch] = replayParent;
-      notice = `REBASE: ${uniqueNodes.length} Commit(s) replayed on ${target} with new hashes.`;
-    }
-  } else {
-    notice = `Unsupported graph command: ${command}`;
-  }
-
-  return { nodes, branches, heads, currentBranch, serial, notice };
-}
-
-function buildCompleteScenario(commands: string[]) {
-  return commands.reduce((state, command) => applyGraphCommand(state, command), emptyGraph());
-}
-
-function scrambledCommands(commands: string[], seed: number) {
-  const result = [...commands];
-  let value = seed * 997 + 31;
+function shuffle<T>(list: T[]): T[] {
+  const result = [...list];
   for (let index = result.length - 1; index > 0; index -= 1) {
-    value = (value * 9301 + 49297) % 233280;
-    const target = value % (index + 1);
-    [result[index], result[target]] = [result[target], result[index]];
-  }
-  if (result.every((item, index) => item === commands[index]) && result.length > 1) {
-    result.push(result.shift()!);
+    const other = Math.floor(Math.random() * (index + 1));
+    [result[index], result[other]] = [result[other], result[index]];
   }
   return result;
 }
 
-function UsageGuide({ title, items }: { title: string; items: Array<{ title: string; text: string }> }) {
+function shortMessage(command: string) {
+  return command.match(/-m\s+["'](.+?)["']/)?.[1] ?? "snapshot";
+}
+
+function ancestors(state: GraphState, id: string): Set<string> {
+  const found = new Set<string>();
+  const visit = (nodeId: string) => {
+    if (!nodeId || found.has(nodeId)) return;
+    found.add(nodeId);
+    const node = state.nodes.find((item) => item.id === nodeId);
+    node?.parents.forEach(visit);
+  };
+  visit(id);
+  return found;
+}
+
+function executeGraphCommand(previous: GraphState, raw: string): GraphState {
+  const command = raw.trim();
+  if (!command) return previous;
+  const next: GraphState = { nodes: [...previous.nodes], branches: { ...previous.branches }, current: previous.current };
+  const makeNode = (message: string, parents: string[], branch = next.current) => {
+    const id = (next.nodes.length + 1).toString(16).padStart(3, "0");
+    next.nodes.push({ id, message, parents: parents.filter(Boolean), branch, order: next.nodes.length });
+    next.branches[branch] = id;
+  };
+  const createMatch = command.match(/^git (?:switch -c|checkout -b)\s+([^\s]+)/);
+  if (createMatch) {
+    next.branches[createMatch[1]] = next.branches[next.current] ?? "";
+    next.current = createMatch[1];
+    return next;
+  }
+  const switchMatch = command.match(/^git (?:switch|checkout)\s+([^\s]+)/);
+  if (switchMatch && next.branches[switchMatch[1]] !== undefined) {
+    next.current = switchMatch[1];
+    return next;
+  }
+  if (command.startsWith("git commit")) {
+    makeNode(shortMessage(command), [next.branches[next.current]]);
+    return next;
+  }
+  const mergeMatch = command.match(/^git merge(?:\s+--(?:no-ff|squash))?\s+([^\s]+)/);
+  if (mergeMatch) {
+    const source = mergeMatch[1];
+    const sourceHead = next.branches[source];
+    const targetHead = next.branches[next.current];
+    if (!sourceHead) return next;
+    if (command.includes("--squash")) {
+      makeNode(`squash: ${source}`, [targetHead]);
+    } else if (!command.includes("--no-ff") && ancestors(next, sourceHead).has(targetHead)) {
+      next.branches[next.current] = sourceHead;
+    } else {
+      makeNode(`merge: ${source}`, [targetHead, sourceHead]);
+    }
+    return next;
+  }
+  const rebaseMatch = command.match(/^git rebase\s+([^\s]+)/);
+  if (rebaseMatch && next.branches[rebaseMatch[1]] !== undefined) {
+    const targetHead = next.branches[rebaseMatch[1]];
+    const oldHead = next.branches[next.current];
+    const targetAncestors = ancestors(next, targetHead);
+    const replay = next.nodes.filter((node) => ancestors(next, oldHead).has(node.id) && !targetAncestors.has(node.id) && node.branch === next.current);
+    next.branches[next.current] = targetHead;
+    replay.forEach((node) => makeNode(`${node.message} (rebased)`, [next.branches[next.current]]));
+    return next;
+  }
+  return next;
+}
+
+function normalizeCommand(value: string) {
+  return value.trim().replace(/\s+/g, " ").replace(/[“”]/g, '"');
+}
+
+function equivalentOrder(current: string[], mission: Mission) {
+  const expected = mission.steps.map(normalizeCommand);
+  const actual = current.map(normalizeCommand);
+  if (actual.join("\n") === expected.join("\n")) return true;
+  if (!mission.movableGroups) return false;
+  const canonicalize = (items: string[]) => {
+    const output = [...items];
+    mission.movableGroups?.forEach((group) => {
+      const normalizedGroup = group.map(normalizeCommand);
+      const indexes = normalizedGroup.map((item) => output.indexOf(item)).sort((a, b) => a - b);
+      if (indexes.some((index) => index < 0)) return;
+      const sorted = normalizedGroup.slice().sort();
+      indexes.forEach((index, offset) => { output[index] = sorted[offset]; });
+    });
+    return output.join("\n");
+  };
+  return canonicalize(actual) === canonicalize(expected);
+}
+
+function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <aside className="usage-guide" lang="fa" dir="rtl">
-      <header className="fa"><span>راهنمای استفاده</span><b>{title}</b></header>
-      <div>
-        {items.map((item, index) => (
-          <article key={item.title}>
-            <span>{String(index + 1).padStart(2, "0")}</span>
-            <div className="fa"><b>{item.title}</b><p>{item.text}</p></div>
-          </article>
+    <span className={`brand ${compact ? "brand-compact" : ""}`}>
+      <img src="/bugcharm-logo.png" alt="BugCharm" />
+      <span><b>BUGCHARM</b><small>GIT STATE LAB</small></span>
+    </span>
+  );
+}
+
+function ContactHub() {
+  return (
+    <section className="contact-hub" aria-label="راه‌های ارتباطی با مدرس">
+      <div className="contact-owner">
+        <img src="/bugcharm-logo.png" alt="BugCharm" />
+        <div><span>YOUR INSTRUCTOR</span><strong>شکوفه اکبری</strong><small>Shokoufeh Akbari · BugCharm</small></div>
+      </div>
+      <div className="contact-links">
+        {contacts.map((contact) => (
+          <a href={contact.href} target="_blank" rel="noreferrer" key={contact.label}>
+            <i>{contact.icon}</i><span><b>{contact.label}</b><small>{contact.handle}</small></span><em>↗</em>
+          </a>
         ))}
       </div>
-    </aside>
+    </section>
+  );
+}
+
+function Guide({ eyebrow, title, text, steps }: { eyebrow: string; title: string; text: string; steps: string[] }) {
+  return (
+    <div className="guide-card">
+      <img src="/bugcharm-logo.png" alt="" />
+      <div className="guide-intro"><span>{eyebrow}</span><h3>{title}</h3><p>{text}</p></div>
+      <div className="guide-steps">
+        {steps.map((step, index) => <div key={step}><b>{String(index + 1).padStart(2, "0")}</b><p>{step}</p></div>)}
+      </div>
+    </div>
+  );
+}
+
+function CelebrationLayer({ value, onClose }: { value: Celebration; onClose: () => void }) {
+  if (!value) return null;
+  return (
+    <div className="celebration" role="dialog" aria-modal="true">
+      <div className="balloons" aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <i key={index} style={{ "--i": index } as React.CSSProperties} />)}</div>
+      <div className="celebration-card">
+        <img src="/bugcharm-logo.png" alt="" />
+        <span>LEVEL COMPLETE</span>
+        <h2>{value.title}</h2>
+        <div className="xp-pop">+{value.xp} XP</div>
+        <p>{value.subtitle}</p>
+        <button onClick={onClose}>CONTINUE →</button>
+      </div>
+    </div>
   );
 }
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<Tab>("home");
   const [score, setScore] = useState(0);
-  const [copied, setCopied] = useState("");
-  const [referenceGroup, setReferenceGroup] = useState("ALL");
-  const [referenceQuery, setReferenceQuery] = useState("");
+  const [celebration, setCelebration] = useState<Celebration>(null);
 
-  const [graphScenarioIndex, setGraphScenarioIndex] = useState(0);
-  const [graphStep, setGraphStep] = useState(0);
-  const [graph, setGraph] = useState<GraphState>(emptyGraph);
-  const [commitMessage, setCommitMessage] = useState("work in progress");
-  const [newBranchName, setNewBranchName] = useState("feature/new-flow");
-  const [mergeTarget, setMergeTarget] = useState("main");
-
-  const [quizModuleIndex, setQuizModuleIndex] = useState(0);
-  const [quizIndex, setQuizIndex] = useState(0);
-  const [quizAnswer, setQuizAnswer] = useState<number | null>(null);
-  const [quizPoints, setQuizPoints] = useState(0);
-
-  const [missionLevel, setMissionLevel] = useState<"ALL" | MissionLevel>("ALL");
-  const [missionIndex, setMissionIndex] = useState(0);
-  const [missionOrder, setMissionOrder] = useState<string[]>([]);
-  const [missionFeedback, setMissionFeedback] = useState<"idle" | "correct" | "wrong">("idle");
-  const [completedMissions, setCompletedMissions] = useState<string[]>([]);
-
-  const activeGraphScenario = graphScenarios[graphScenarioIndex];
-  const activeQuizModule = quizModules[quizModuleIndex];
-  const activeQuizQuestions = activeQuizModule.questions;
-  const activeQuizQuestion = activeQuizQuestions[quizIndex];
-  const activeMission = orderMissions[missionIndex];
-  const mixedMissionCommands = useMemo(
-    () => scrambledCommands(activeMission.commands, missionIndex + 1),
-    [activeMission, missionIndex],
-  );
-
-  const graphBranches = unique(["main", ...graph.branches, ...graph.nodes.map((node) => node.branch)]);
-  const graphColor = (branch: string) => graphColors[graphBranches.indexOf(branch) % graphColors.length];
-  const graphX = (index: number) => 140 + index * 210;
-  const graphY = (branch: string) => 115 + graphBranches.indexOf(branch) * 135;
-  const graphWidth = Math.max(1180, graph.nodes.length * 210 + 360);
-  const graphHeight = Math.max(500, graphBranches.length * 135 + 150);
-  const mergeTargets = graph.branches.filter((branch) => branch !== graph.currentBranch && graph.heads[branch]);
-  const resolvedMergeTarget = mergeTargets.includes(mergeTarget) ? mergeTarget : mergeTargets[0] ?? "";
-
-  const filteredReferences = useMemo(() => {
-    const query = referenceQuery.trim().toLowerCase();
-    return commandReferences.filter((item) => {
-      const groupMatch = referenceGroup === "ALL" || item.group === referenceGroup;
-      const textMatch = !query || `${item.command} ${item.titleFa} ${item.explanationFa}`.toLowerCase().includes(query);
-      return groupMatch && textMatch;
-    });
-  }, [referenceGroup, referenceQuery]);
-
-  const filteredMissions = orderMissions.filter((mission) => missionLevel === "ALL" || mission.level === missionLevel);
-
-  const copy = async (value: string) => {
-    await navigator.clipboard.writeText(value);
-    setCopied(value);
-    window.setTimeout(() => setCopied(""), 1200);
-  };
-
-  const selectGraphScenario = (index: number) => {
-    setGraphScenarioIndex(index);
-    setGraphStep(0);
-    setGraph(emptyGraph());
-  };
-
-  const runGraphCommand = (command: string, guided = false) => {
-    setGraph((current) => applyGraphCommand(current, command));
-    if (guided) setGraphStep((current) => Math.min(current + 1, activeGraphScenario.commands.length));
-  };
-
-  const runCompleteGraph = () => {
-    setGraph(buildCompleteScenario(activeGraphScenario.commands));
-    setGraphStep(activeGraphScenario.commands.length);
-  };
-
-  const commitToGraph = (event: FormEvent) => {
-    event.preventDefault();
-    const message = commitMessage.trim();
-    if (!message) return;
-    runGraphCommand(`git commit -m "${message}"`);
-  };
-
-  const createGraphBranch = (event: FormEvent) => {
-    event.preventDefault();
-    const branch = newBranchName.trim().replace(/\s+/g, "-");
-    if (!branch) return;
-    runGraphCommand(`git switch -c ${branch}`);
-  };
-
-  const answerQuiz = (index: number) => {
-    if (quizAnswer !== null) return;
-    setQuizAnswer(index);
-    if (index === activeQuizQuestion.answer) {
-      setQuizPoints((current) => current + 1);
-      setScore((current) => current + 25);
-    }
-  };
-
-  const nextQuiz = () => {
-    if (quizIndex === activeQuizQuestions.length - 1) {
-      setQuizIndex(0);
-      setQuizPoints(0);
-    } else {
-      setQuizIndex((current) => current + 1);
-    }
-    setQuizAnswer(null);
-  };
-
-  const selectQuizModule = (index: number) => {
-    setQuizModuleIndex(index);
-    setQuizIndex(0);
-    setQuizAnswer(null);
-    setQuizPoints(0);
-  };
-
-  const selectMission = (index: number) => {
-    setMissionIndex(index);
-    setMissionOrder([]);
-    setMissionFeedback("idle");
-  };
-
-  const filterMissionLevel = (level: "ALL" | MissionLevel) => {
-    setMissionLevel(level);
-    if (level !== "ALL" && activeMission.level !== level) {
-      const firstMatch = orderMissions.findIndex((mission) => mission.level === level);
-      if (firstMatch >= 0) selectMission(firstMatch);
-    }
-  };
-
-  const addMissionCommand = (command: string) => {
-    if (missionOrder.includes(command)) return;
-    setMissionOrder((current) => [...current, command]);
-    setMissionFeedback("idle");
-  };
-
-  const removeMissionCommand = (command: string) => {
-    setMissionOrder((current) => current.filter((item) => item !== command));
-    setMissionFeedback("idle");
-  };
-
-  const moveMissionCommand = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= missionOrder.length) return;
-    setMissionOrder((current) => {
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-    setMissionFeedback("idle");
-  };
-
-  const checkMission = () => {
-    const correct = activeMission.commands.every((command, index) => missionOrder[index] === command);
-    setMissionFeedback(correct ? "correct" : "wrong");
-    if (correct && !completedMissions.includes(activeMission.id)) {
-      setCompletedMissions((current) => [...current, activeMission.id]);
-      setScore((current) => current + (activeMission.level === "ADVANCED" ? 180 : activeMission.level === "INTERMEDIATE" ? 120 : 80));
-    }
+  const openTab = (tab: Tab) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `#${tab}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <main className="app-shell" dir="ltr">
+    <main>
+      <CelebrationLayer value={celebration} onClose={() => setCelebration(null)} />
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Git State Lab home">
-          <span className="brand-cube">G</span>
-          <span><b>GIT STATE LAB</b><small>Workshop by Shokoufeh Akbari</small></span>
-        </a>
-        <nav aria-label="Primary navigation">
-          <a href="#graph">GRAPH</a>
-          <a href="#quiz">QUIZ</a>
-          <a href="#ordering">CHALLENGES</a>
-          <a href="#reference">REFERENCE</a>
-        </nav>
-        <div className="score"><span>XP</span><b>{score}</b></div>
+        <button className="brand-button" onClick={() => openTab("home")}><Brand /></button>
+        <div className="topbar-contact">
+          <span>INSTRUCTOR</span><b>شکوفه اکبری</b>
+          <a href="https://www.bugcharm.com" target="_blank" rel="noreferrer">BUGCHARM.COM ↗</a>
+        </div>
+        <div className="score-chip"><span>WORKSHOP XP</span><strong>{score.toString().padStart(4, "0")}</strong></div>
       </header>
 
-      <section className="hero" id="top">
-        <div className="hero-image" />
-        <svg className="hero-graph-art" viewBox="0 0 1600 900" aria-hidden="true">
-          <path d="M 690 445 C 820 445, 880 445, 990 445 S 1190 445, 1470 445" />
-          <path className="feature" d="M 880 445 C 940 445, 930 275, 1030 275 S 1230 275, 1305 445" />
-          <path className="release" d="M 1060 445 C 1120 445, 1120 625, 1220 625 S 1350 625, 1410 445" />
-          {[720, 840, 970, 1100, 1305, 1450].map((x) => <circle className="main-node" cx={x} cy="445" key={`main-${x}`} r="11" />)}
-          {[960, 1070, 1180].map((x) => <circle className="feature-node" cx={x} cy="275" key={`feature-${x}`} r="11" />)}
-          {[1160, 1260, 1360].map((x) => <circle className="release-node" cx={x} cy="625" key={`release-${x}`} r="11" />)}
-          <g className="hero-pointer" transform="translate(1360 398)"><rect width="150" height="32" rx="7" /><text x="75" y="21">main • HEAD</text></g>
-          <g className="hero-pointer feature-label" transform="translate(1060 215)"><rect width="160" height="32" rx="7" /><text x="80" y="21">feature/auth</text></g>
-          <g className="hero-pointer release-label" transform="translate(1190 675)"><rect width="140" height="32" rx="7" /><text x="70" y="21">release/2.0</text></g>
-        </svg>
-        <div className="hero-overlay" />
-        <div className="hero-content">
-          <div className="hero-panel">
-            <p className="eyebrow">INTERACTIVE GIT & GITHUB WORKSHOP</p>
-            <h1>BUILD A CLEAR<br /><span>GIT MENTAL MODEL.</span></h1>
-            <p className="hero-fa fa" lang="fa" dir="rtl">تاریخچه را بساز، تصمیم هر دستور را ببین و با آزمون‌ها و چالش‌های عملی برای کار تیمی واقعی آماده شو.</p>
-            <div className="instructor-tag"><span>INSTRUCTOR</span><b className="fa" lang="fa" dir="rtl">شکوفه اکبری</b></div>
-            <div className="hero-actions">
-              <a className="button primary" href="#graph">OPEN GRAPH LAB <span>↓</span></a>
-              <a className="button secondary" href="#quiz">CHOOSE A QUIZ</a>
-            </div>
-            <div className="hero-metrics">
-              <div><b>5</b><span>GRAPH FLOWS</span></div>
-              <div><b>6</b><span>QUIZ TOPICS</span></div>
-              <div><b>20</b><span>ORDERING CHALLENGES</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <nav className="workspace-tabs" aria-label="بخش‌های آزمایشگاه">
+        {tabs.map((tab) => (
+          <button className={activeTab === tab.id ? "active" : ""} onClick={() => openTab(tab.id)} key={tab.id}>
+            <img src="/bugcharm-logo.png" alt="" /><i>{tab.icon}</i><span><b>{tab.label}</b><small>{tab.fa}</small></span>
+          </button>
+        ))}
+      </nav>
 
-      <section className="graph-section section" id="graph">
-        <div className="section-title">
-          <div><span>01 / INTERACTIVE HISTORY</span><h2>BUILD A REAL GIT GRAPH</h2></div>
-          <p className="fa" lang="fa" dir="rtl">یک جریان آماده را انتخاب کن یا با ابزار Custom Build تاریخچهٔ خودت را بساز. هر Commit، Branch، Switch، Merge و Rebase مستقیماً روی Graph اعمال می‌شود.</p>
-        </div>
-        <UsageGuide
-          title="فرمان را اجرا کن و اثرش را روی تاریخچه بخوان"
-          items={[
-            { title: "نوع تاریخچه را انتخاب کن", text: "سناریوهای واقعی، Fast-forward، Three-way، Squash و Rebase تفاوت شکل تاریخچه را نشان می‌دهند." },
-            { title: "فرمان‌ها را قدم‌به‌قدم اجرا کن", text: "فقط فرمان روشن فعال است. با اجرای آن، Node یا Pointer مربوط همان لحظه روی Graph ساخته می‌شود." },
-            { title: "تاریخچهٔ شخصی بساز", text: "در Custom Build پیام Commit و نام Branch را وارد کن، بین شاخه‌ها جابه‌جا شو و Merge دلخواهت را آزمایش کن." },
-          ]}
-        />
+      <div className="tab-shell" key={activeTab}>
+        {activeTab === "home" && <HomeTab openTab={openTab} />}
+        {activeTab === "playground" && <PlaygroundTab setScore={setScore} />}
+        {activeTab === "graph" && <GraphTab />}
+        {activeTab === "quiz" && <QuizTab setScore={setScore} setCelebration={setCelebration} />}
+        {activeTab === "roadmap" && <RoadmapTab openTab={openTab} />}
+        {activeTab === "reference" && <ReferenceTab />}
+      </div>
 
-        <div className="graph-scenarios" role="tablist" aria-label="Graph scenarios">
-          {graphScenarios.map((scenario, index) => (
-            <button className={graphScenarioIndex === index ? "active" : ""} key={scenario.id} onClick={() => selectGraphScenario(index)} role="tab" type="button">
-              <span>{String(index + 1).padStart(2, "0")}</span><div><b>{scenario.label}</b><strong className="fa" lang="fa" dir="rtl">{scenario.titleFa}</strong></div><i>{scenario.commands.length} COMMANDS</i>
-            </button>
-          ))}
-        </div>
-
-        <article className="graph-brief">
-          <div><span>{activeGraphScenario.label}</span><b>{activeGraphScenario.concept}</b></div>
-          <p className="fa" lang="fa" dir="rtl">{activeGraphScenario.descriptionFa}</p>
-          <button onClick={runCompleteGraph} type="button">BUILD COMPLETE GRAPH</button>
-        </article>
-
-        <div className="graph-command-track">
-          {activeGraphScenario.commands.map((command, index) => {
-            const done = index < graphStep;
-            const current = index === graphStep;
-            return (
-              <button className={done ? "done" : current ? "current" : "locked"} disabled={!current} key={`${command}-${index}`} onClick={() => runGraphCommand(command, true)} type="button">
-                <span>{done ? "✓" : String(index + 1).padStart(2, "0")}</span><code>{command}</code>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="graph-statusbar">
-          <span>HEAD → <b>{graph.currentBranch}</b></span><span><b>{graph.nodes.length}</b> COMMIT NODES</span><p>{graph.notice}</p><button onClick={() => { setGraph(emptyGraph()); setGraphStep(0); }} type="button">RESET GRAPH</button>
-        </div>
-
-        <div className="graph-stage graph-stage-v2">
-          <svg viewBox={`0 0 ${graphWidth} ${graphHeight}`} role="img" aria-label="Interactive Git commit graph">
-            {graphBranches.map((branch) => (
-              <g className="graph-lane" key={branch}>
-                <line stroke={graphColor(branch)} strokeDasharray="4 12" strokeOpacity=".14" x1="92" x2={graphWidth - 70} y1={graphY(branch)} y2={graphY(branch)} />
-                <text fill={graphColor(branch)} x="22" y={graphY(branch) + 4}>{branch}</text>
-              </g>
-            ))}
-            {graph.nodes.flatMap((node, index) => node.parents.map((parentId) => {
-              const parentIndex = graph.nodes.findIndex((item) => item.id === parentId);
-              if (parentIndex < 0) return null;
-              const parent = graph.nodes[parentIndex];
-              const parentX = graphX(parentIndex);
-              const childX = graphX(index);
-              const parentY = graphY(parent.branch);
-              const childY = graphY(node.branch);
-              return <path d={`M ${parentX} ${parentY} C ${parentX + 70} ${parentY}, ${childX - 70} ${childY}, ${childX} ${childY}`} fill="none" key={`${parentId}-${node.id}`} stroke={graphColor(node.branch)} strokeOpacity=".76" strokeWidth={node.kind === "merge" ? 4 : 3} />;
-            }))}
-            {graph.nodes.map((node, index) => {
-              const x = graphX(index);
-              const y = graphY(node.branch);
-              const color = graphColor(node.branch);
-              const pointers = graphBranches.filter((branch) => graph.heads[branch] === node.id);
-              const currentHead = graph.heads[graph.currentBranch] === node.id;
-              return (
-                <g key={node.id}>
-                  {currentHead && <circle cx={x} cy={y} fill="none" r="27" stroke={color} strokeDasharray="4 5" strokeWidth="2" />}
-                  <circle cx={x} cy={y} fill="#07120f" r={node.kind === "merge" ? 14 : 11} stroke={color} strokeWidth="5" />
-                  <text className="graph-message" fill="#effaf4" textAnchor="middle" x={x} y={y + 49}>{node.message}</text>
-                  <text className="graph-hash" fill="#778e84" textAnchor="middle" x={x} y={y + 69}>{node.id} • {node.kind.toUpperCase()}</text>
-                  {pointers.map((branch, pointerIndex) => {
-                    const width = Math.max(90, branch.length * 8 + (branch === graph.currentBranch ? 52 : 22));
-                    return (
-                      <g className="graph-pointer" key={branch} transform={`translate(${x - width / 2}, ${y - 48 - pointerIndex * 27})`}>
-                        <rect fill="#0a1914" height="22" rx="5" stroke={graphColor(branch)} width={width} />
-                        <text fill={graphColor(branch)} textAnchor="middle" x={width / 2} y="15">{branch}{branch === graph.currentBranch ? " • HEAD" : ""}</text>
-                      </g>
-                    );
-                  })}
-                </g>
-              );
-            })}
-          </svg>
-          {!graph.nodes.length && <div className="graph-empty"><span>◇</span><b>NO COMMITS YET</b><p className="fa" lang="fa" dir="rtl">فرمان اول سناریو را اجرا کن یا دکمهٔ Build Complete Graph را بزن.</p></div>}
-        </div>
-
-        <div className="custom-graph-builder">
-          <header><div><span>CUSTOM BUILD</span><h3>CREATE YOUR OWN HISTORY</h3></div><p className="fa" lang="fa" dir="rtl">این ابزار محدود به سناریوی آماده نیست؛ Commit بساز، Branch جدید ایجاد کن، شاخهٔ فعال را عوض کن و نوع Merge را خودت انتخاب کن.</p></header>
-          <div className="custom-builder-grid">
-            <form onSubmit={commitToGraph}><label>COMMIT ON <b>{graph.currentBranch}</b></label><div><input onChange={(event) => setCommitMessage(event.target.value)} value={commitMessage} /><button type="submit">git commit -m</button></div></form>
-            <form onSubmit={createGraphBranch}><label>NEW BRANCH FROM HEAD</label><div><input onChange={(event) => setNewBranchName(event.target.value)} value={newBranchName} /><button type="submit">git switch -c</button></div></form>
-          </div>
-          <div className="branch-switch-panel"><span>SWITCH HEAD</span><div>{graph.branches.map((branch) => <button className={branch === graph.currentBranch ? "active" : ""} disabled={branch === graph.currentBranch} key={branch} onClick={() => runGraphCommand(`git switch ${branch}`)} type="button">git switch {branch}</button>)}</div></div>
-          <div className="merge-panel"><div><span>MERGE TARGET</span><select onChange={(event) => setMergeTarget(event.target.value)} value={resolvedMergeTarget}>{mergeTargets.length ? mergeTargets.map((branch) => <option key={branch}>{branch}</option>) : <option value="">CREATE ANOTHER BRANCH FIRST</option>}</select></div><div><button disabled={!resolvedMergeTarget} onClick={() => runGraphCommand(`git merge ${resolvedMergeTarget}`)} type="button">git merge</button><button disabled={!resolvedMergeTarget} onClick={() => runGraphCommand(`git merge --no-ff ${resolvedMergeTarget}`)} type="button">git merge --no-ff</button><button disabled={!resolvedMergeTarget} onClick={() => runGraphCommand(`git merge --squash ${resolvedMergeTarget}`)} type="button">git merge --squash</button><button disabled={!resolvedMergeTarget} onClick={() => runGraphCommand(`git rebase ${resolvedMergeTarget}`)} type="button">git rebase</button></div></div>
-        </div>
-
-        <div className="graph-explainer">
-          <article><span>COMMIT NODE</span><p className="fa" lang="fa" dir="rtl">هر Commit یک Node تازه با Hash و Parent مشخص ایجاد می‌کند.</p></article>
-          <article><span>BRANCH POINTER</span><p className="fa" lang="fa" dir="rtl">Branch فقط اشاره‌گری است که با Commit یا Fast-forward جابه‌جا می‌شود.</p></article>
-          <article><span>MERGE BEHAVIOR</span><p className="fa" lang="fa" dir="rtl">Fast-forward فقط Pointer را جلو می‌برد؛ Merge واقعی یک Node با دو Parent می‌سازد.</p></article>
-        </div>
-      </section>
-
-      <section className="quiz-section section" id="quiz">
-        <div className="section-title">
-          <div><span>02 / COURSE QUIZZES</span><h2>TEST YOUR GIT MODEL</h2></div>
-          <p className="fa" lang="fa" dir="rtl">یکی از شش بخش ورکشاپ را انتخاب کن. هر بخش ۱۵ سؤال دارد و از مفاهیم پایه شروع می‌شود و به موقعیت‌های چالشی می‌رسد.</p>
-        </div>
-        <UsageGuide title="آزمون متناسب با بخش دوره" items={[{ title: "بخش دوره را انتخاب کن", text: "برای هر سرفصل یک آزمون مستقل ۱۵ سؤالی طراحی شده است؛ امتیاز هر بخش جداگانه محاسبه می‌شود." }, { title: "سطح سؤال را ببین", text: "پنج سؤال اول Beginner، پنج سؤال بعد Intermediate و پنج سؤال آخر Challenge هستند." }, { title: "دلیل پاسخ را بخوان", text: "بعد از انتخاب گزینه، فقط درست یا غلط نمی‌بینی؛ توضیح مدل ذهنی درست هم نمایش داده می‌شود." }]} />
-        <div className="quiz-modules" role="tablist" aria-label="Quiz course sections">
-          {quizModules.map((module, index) => <button className={quizModuleIndex === index ? "active" : ""} key={module.id} onClick={() => selectQuizModule(index)} role="tab" type="button"><span>{module.number}</span><div><b>{module.label}</b><strong className="fa" lang="fa" dir="rtl">{module.titleFa}</strong></div><i>15 QUESTIONS</i></button>)}
-        </div>
-        <div className="quiz-selection-summary"><div><span>SELECTED SECTION</span><b>{activeQuizModule.label}</b></div><p className="fa" lang="fa" dir="rtl">{activeQuizModule.descriptionFa}</p></div>
-        <div className="quiz-progress"><i style={{ width: `${((quizIndex + 1) / activeQuizQuestions.length) * 100}%` }} /></div>
-        <article className="quiz-card">
-          <header><span>QUESTION {String(quizIndex + 1).padStart(2, "0")} / {activeQuizQuestions.length}</span><i className={`level-${activeQuizQuestion.level.toLowerCase()}`}>{activeQuizQuestion.level}</i><b>{quizPoints}/{activeQuizQuestions.length} CORRECT</b></header>
-          <h3 className="fa" lang="fa" dir="rtl">{activeQuizQuestion.questionFa}</h3>
-          <div className="quiz-options">
-            {activeQuizQuestion.options.map((option, index) => {
-              const answered = quizAnswer !== null;
-              const correct = index === activeQuizQuestion.answer;
-              const selected = index === quizAnswer;
-              const isPersian = /[\u0600-\u06ff]/.test(option);
-              return <button className={`${answered && correct ? "correct" : ""} ${answered && selected && !correct ? "wrong" : ""}`} key={option} onClick={() => answerQuiz(index)} type="button"><span>{String.fromCharCode(65 + index)}</span><code className={isPersian ? "fa" : ""} dir={isPersian ? "rtl" : "ltr"}>{option}</code>{answered && correct && <i>✓</i>}</button>;
-            })}
-          </div>
-          {quizAnswer !== null && <div className={`quiz-feedback ${quizAnswer === activeQuizQuestion.answer ? "good" : "bad"}`}><b>{quizAnswer === activeQuizQuestion.answer ? "CORRECT • +25 XP" : "NOT QUITE • READ THE EXPLANATION"}</b><p className="fa" lang="fa" dir="rtl">{activeQuizQuestion.whyFa}</p></div>}
-          <footer><span>{activeQuizModule.number} • {activeQuizModule.label}</span><button disabled={quizAnswer === null} onClick={nextQuiz} type="button">{quizIndex === activeQuizQuestions.length - 1 ? "RESTART SECTION ↻" : "NEXT QUESTION →"}</button></footer>
-        </article>
-      </section>
-
-      <section className="ordering-section section" id="ordering">
-        <div className="section-title">
-          <div><span>03 / ORDERING CHALLENGES</span><h2>PUT THE COMMANDS IN ORDER</h2></div>
-          <p className="fa" lang="fa" dir="rtl">در هر مأموریت دستورهای واقعی Git به‌هم‌ریخته‌اند. آن‌ها را انتخاب کن، داخل جایگاه‌های شماره‌دار بچین و ترتیب اجرای خودت را ارزیابی کن.</p>
-        </div>
-        <UsageGuide title="ترتیب درست Workflow را پیدا کن" items={[{ title: "مأموریت را انتخاب کن", text: "۲۰ سناریو بر اساس مسیر دوره در سه سطح Beginner، Intermediate و Advanced طراحی شده‌اند." }, { title: "دستورها را شماره‌گذاری کن", text: "روی فرمان‌های مخلوط کلیک کن تا وارد پاسخ شوند؛ با فلش‌ها ترتیب را اصلاح و با × فرمان را خارج کن." }, { title: "پاسخ را ارزیابی کن", text: "وقتی همهٔ Slotها پر شد Check Order را بزن. در صورت خطا می‌توانی پاسخ را اصلاح کنی، نه اینکه جواب آماده ببینی." }]} />
-
-        <div className="mission-filters">{(["ALL", "BEGINNER", "INTERMEDIATE", "ADVANCED"] as const).map((level) => <button className={missionLevel === level ? "active" : ""} key={level} onClick={() => filterMissionLevel(level)} type="button">{level}<span>{level === "ALL" ? orderMissions.length : orderMissions.filter((mission) => mission.level === level).length}</span></button>)}</div>
-        <div className="mission-catalog">
-          {filteredMissions.map((mission) => {
-            const index = orderMissions.findIndex((item) => item.id === mission.id);
-            return <button className={`${missionIndex === index ? "active" : ""} ${completedMissions.includes(mission.id) ? "completed" : ""}`} key={mission.id} onClick={() => selectMission(index)} type="button"><span>{mission.number}</span><div><b className="fa" lang="fa" dir="rtl">{mission.titleFa}</b><small>{mission.module}</small></div><i>{completedMissions.includes(mission.id) ? "✓" : mission.level}</i></button>;
-          })}
-        </div>
-
-        <article className="ordering-brief">
-          <div><span>MISSION {activeMission.number}</span><b className={`mission-level ${activeMission.level.toLowerCase()}`}>{activeMission.level}</b></div>
-          <section className="fa" lang="fa" dir="rtl"><small>{activeMission.module}</small><h3>{activeMission.titleFa}</h3><p>{activeMission.briefFa}</p><strong>{activeMission.objectiveFa}</strong></section>
-          <aside><b>{missionOrder.length}/{activeMission.commands.length}</b><span>COMMANDS PLACED</span></aside>
-        </article>
-
-        <div className="ordering-workspace">
-          <section className="command-bank"><header><div><span>SHUFFLED COMMANDS</span><b>SELECT A COMMAND</b></div><p className="fa" lang="fa" dir="rtl">فرمان بعدی را از این فهرست انتخاب کن.</p></header><div>{mixedMissionCommands.filter((command) => !missionOrder.includes(command)).map((command) => <button key={command} onClick={() => addMissionCommand(command)} type="button"><span>＋</span><code>{command}</code></button>)}{missionOrder.length === activeMission.commands.length && <div className="bank-empty"><span>✓</span><b>ALL COMMANDS PLACED</b></div>}</div></section>
-          <section className="ordered-answer"><header><div><span>YOUR EXECUTION ORDER</span><b>NUMBERED WORKFLOW</b></div><button onClick={() => { setMissionOrder([]); setMissionFeedback("idle"); }} type="button">RESET ORDER</button></header><div>{activeMission.commands.map((_, index) => {
-            const command = missionOrder[index];
-            return <article className={command ? "filled" : "empty"} key={index}><span>{String(index + 1).padStart(2, "0")}</span>{command ? <><code>{command}</code><div><button disabled={index === 0} onClick={() => moveMissionCommand(index, -1)} type="button">↑</button><button disabled={index === missionOrder.length - 1} onClick={() => moveMissionCommand(index, 1)} type="button">↓</button><button onClick={() => removeMissionCommand(command)} type="button">×</button></div></> : <p className="fa" lang="fa" dir="rtl">فرمان این مرحله را انتخاب کن</p>}</article>;
-          })}</div></section>
-        </div>
-
-        <div className={`mission-check ${missionFeedback}`}><div>{missionFeedback === "correct" ? <><b>WORKFLOW COMPLETE ✓</b><p className="fa" lang="fa" dir="rtl">ترتیب درست است؛ این مأموریت با موفقیت تکمیل شد.</p></> : missionFeedback === "wrong" ? <><b>ORDER NEEDS REVISION</b><p className="fa" lang="fa" dir="rtl">همهٔ فرمان‌ها انتخاب شده‌اند اما ترتیب اجرای بعضی مرحله‌ها درست نیست. وابستگی هر فرمان به State قبلی را دوباره بررسی کن.</p></> : <><b>READY TO CHECK</b><p className="fa" lang="fa" dir="rtl">پس از پرکردن همهٔ جایگاه‌ها، ترتیب Workflow را ارزیابی کن.</p></>}</div><button disabled={missionOrder.length !== activeMission.commands.length} onClick={checkMission} type="button">CHECK ORDER</button></div>
-      </section>
-
-      <section className="roadmap-section section">
-        <div className="section-title"><div><span>04 / LEARNING PATH</span><h2>YOUR WORKSHOP ROADMAP</h2></div><p className="fa" lang="fa" dir="rtl">این نقشه ترتیب یادگیری دوره را نشان می‌دهد؛ هر مرحله روی دانشی ساخته می‌شود که در مرحلهٔ قبل تمرین کرده‌ای.</p></div>
-        <figure><img src="/course-roadmap.png" alt="نقشه راه فارسی ورکشاپ Git و GitHub" /><figcaption>THE COMPLETE WORKSHOP ROADMAP</figcaption></figure>
-      </section>
-
-      <section className="reference-section section" id="reference">
-        <div className="section-title"><div><span>05 / COMMAND REFERENCE</span><h2>UNDERSTAND EACH COMMAND</h2></div><p className="fa" lang="fa" dir="rtl">این بخش فقط فهرست دستورها نیست؛ برای هر فرمان می‌بینی از کدام State می‌خواند، کدام State را تغییر می‌دهد و چه زمانی باید با احتیاط اجرا شود.</p></div>
-        <UsageGuide title="از Reference برای مرور و تمرین استفاده کن" items={[{ title: "گروه را محدود کن", text: "با انتخاب Setup، Local، Undo، Branch، Remote یا Team فقط دستورهای همان موضوع را ببین." }, { title: "اثر State را بخوان", text: "عبارت State Effect مسیر واقعی دستور را خلاصه می‌کند؛ قبل از کپی‌کردن، آن را پیش‌بینی کن." }, { title: "سطح ریسک را جدی بگیر", text: "Safe فقط می‌خواند یا تغییر قابل بازگشت دارد؛ Careful نیازمند بررسی است و Danger می‌تواند تاریخچه یا داده را بازنویسی کند." }]} />
-        <div className="reference-tools"><label><span>⌕</span><input aria-label="Search commands" onChange={(event) => setReferenceQuery(event.target.value)} placeholder="Search command or concept..." value={referenceQuery} /></label><div>{["ALL", ...unique(commandReferences.map((item) => item.group))].map((group) => <button className={referenceGroup === group ? "active" : ""} key={group} onClick={() => setReferenceGroup(group)} type="button">{group}</button>)}</div></div>
-        <div className="reference-grid">{filteredReferences.map((item) => <article className={`reference-card ${item.risk.toLowerCase()}`} key={`${item.group}-${item.command}`}><header><span>{item.group}</span><b>{item.risk}</b></header><h3 className="fa" lang="fa" dir="rtl">{item.titleFa}</h3><div className="code-block"><code>{item.command}</code><button onClick={() => copy(item.command)} type="button">{copied === item.command ? "COPIED ✓" : "COPY"}</button></div><p className="fa" lang="fa" dir="rtl">{item.explanationFa}</p><footer><span>STATE EFFECT</span><b>{item.movement}</b></footer></article>)}</div>
-      </section>
-
-      <footer className="site-footer"><div className="brand"><span className="brand-cube">G</span><span><b>GIT STATE LAB</b><small>Learn by doing, verify by history</small></span></div><div className="footer-credit"><span>WORKSHOP INSTRUCTOR</span><b className="fa" lang="fa" dir="rtl">شکوفه اکبری</b><p className="fa" lang="fa" dir="rtl">طراحی‌شده برای یادگیری عملی Git و GitHub</p></div><a href="#top">BACK TO TOP ↑</a></footer>
+      <ContactHub />
+      <footer className="site-footer"><Brand compact /><p>طراحی و تدریس: <b>شکوفه اکبری</b> · یک محیط امن برای ساختن مدل ذهنی عمیق از Git</p><span>© 2026 BUGCHARM</span></footer>
     </main>
+  );
+}
+
+function HomeTab({ openTab }: { openTab: (tab: Tab) => void }) {
+  return (
+    <section className="home-tab">
+      <div className="hero-glow" />
+      <div className="hero-copy">
+        <div className="hero-brand"><img src="/bugcharm-logo.png" alt="BugCharm" /><span>VISUAL GIT WORKSHOP · PRACTICE ENVIRONMENT</span></div>
+        <h1><span>LEARN GIT</span><br /><em>BY SEEING STATE.</em></h1>
+        <p>دستور را اجرا کن، جابه‌جایی واقعی فایل‌ها را بین چهار وضعیت ببین، تاریخچه بساز و آموخته‌هایت را با آزمون‌های سطح‌بندی‌شده محک بزن.</p>
+        <div className="hero-actions">
+          <button className="primary" onClick={() => openTab("playground")}>OPEN STATE LAB <span>→</span></button>
+          <button onClick={() => openTab("quiz")}>START A QUIZ <span>↗</span></button>
+        </div>
+        <div className="hero-metrics">
+          <div><strong>04</strong><span>STATE ZONES</span><small>درک مسیر هر فایل</small></div>
+          <div><strong>90</strong><span>LEVELLED QUESTIONS</span><small>شش فصل کامل</small></div>
+          <div><strong>20</strong><span>ORDER MISSIONS</span><small>سناریوی اجرایی</small></div>
+          <div><strong>∞</strong><span>GRAPH HISTORY</span><small>با Zoom و Scroll</small></div>
+        </div>
+      </div>
+      <div className="hero-visual" aria-hidden="true">
+        <div className="mini-graph">
+          <span className="line l1" /><span className="line l2" /><span className="line l3" />
+          <i className="node n1">A</i><i className="node n2">B</i><i className="node n3">C</i><i className="node n4">M</i>
+          <b className="branch-label main-label">main</b><b className="branch-label feature-label">feature</b>
+        </div>
+        <div className="terminal-card"><span>STATE TRANSITION</span><code><i>$</i> git add app.js</code><p>working tree <b>→</b> staging area</p></div>
+        <img className="hero-watermark" src="/bugcharm-logo.png" alt="" />
+      </div>
+    </section>
+  );
+}
+
+function SectionHead({ index, label, title, description }: { index: string; label: string; title: string; description: string }) {
+  return (
+    <div className="section-head">
+      <div><span>{index} / {label}</span><h1>{title}</h1></div>
+      <p>{description}</p>
+    </div>
+  );
+}
+
+function PlaygroundTab({ setScore }: { setScore: React.Dispatch<React.SetStateAction<number>> }) {
+  const [files, setFiles] = useState<LabFile[]>([
+    { id: 1, name: "app.js", zone: "working" },
+    { id: 2, name: "README.md", zone: "working" },
+    { id: 3, name: "style.css", zone: "working" },
+  ]);
+  const [command, setCommand] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const [message, setMessage] = useState("سه فایل در Working Directory منتظر اولین دستور هستند.");
+  const [activeMove, setActiveMove] = useState<Zone | null>(null);
+  const nextId = useRef(4);
+
+  const move = (from: Zone | Zone[], to: Zone, matcher?: (file: LabFile) => boolean) => {
+    const sources = Array.isArray(from) ? from : [from];
+    let moved = false;
+    setFiles((current) => current.map((file) => {
+      if (sources.includes(file.zone) && (!matcher || matcher(file))) { moved = true; return { ...file, zone: to }; }
+      return file;
+    }));
+    setActiveMove(to);
+    window.setTimeout(() => setActiveMove(null), 850);
+    return moved;
+  };
+
+  const run = (input = command) => {
+    const raw = normalizeCommand(input);
+    if (!raw) return;
+    let result = "این دستور وضعیت فایل‌های چهار در را تغییر نمی‌دهد، اما در تاریخچه ثبت شد.";
+    if (/^touch\s+/.test(raw)) {
+      const name = raw.split(" ")[1];
+      setFiles((current) => [...current, { id: nextId.current++, name, zone: "working" }]);
+      setActiveMove("working");
+      result = `${name} در Working Directory ساخته شد.`;
+    } else if (/^git add(?:\s+\. |\s+\.$)/.test(`${raw} `)) {
+      move("working", "staging"); result = "همهٔ فایل‌های Working Directory وارد Staging Area شدند.";
+    } else if (/^git add\s+/.test(raw)) {
+      const name = raw.replace(/^git add\s+/, "");
+      move("working", "staging", (file) => file.name === name); result = `${name} وارد Staging Area شد.`;
+    } else if (/^git commit/.test(raw)) {
+      move("staging", "local"); result = "فایل‌های staged در یک Commit داخل Local Repository ثبت شدند.";
+    } else if (/^git push/.test(raw)) {
+      move("local", "remote"); result = "Commitهای محلی به Remote Repository فرستاده شدند.";
+    } else if (/^git (fetch|pull)/.test(raw)) {
+      move("remote", raw.startsWith("git pull") ? "working" : "local");
+      result = raw.startsWith("git pull") ? "اطلاعات Remote دریافت و در Working Directory ادغام شد." : "اطلاعات Remote بدون تغییر Working Directory به Local Repository رسید.";
+    } else if (/^git reset --soft/.test(raw)) {
+      move("local", "staging"); result = "HEAD عقب رفت و Snapshot قبلی به‌صورت staged باقی ماند.";
+    } else if (/^git restore --staged/.test(raw) || /^git reset(?:\s+HEAD)?(?:\s+.+)?$/.test(raw)) {
+      move("staging", "working"); result = "فایل‌ها از Stage خارج و به Working Directory برگشتند.";
+    } else if (/^git restore\s+/.test(raw)) {
+      result = "تغییر محلی فایل لغو شد؛ فایل همچنان در Working Directory است.";
+    }
+    setHistory((current) => [raw, ...current].slice(0, 8));
+    setMessage(result);
+    setCommand("");
+    setScore((value) => value + 2);
+  };
+
+  const presets = ["git add app.js", "git add .", "git commit -m \"feat: snapshot\"", "git push -u origin main", "git fetch origin", "git pull", "git restore --staged app.js", "git reset --soft HEAD~1", "touch test.js"];
+  const zones: { id: Zone; title: string; subtitle: string; color: string; icon: string }[] = [
+    { id: "working", title: "WORKING DIRECTORY", subtitle: "فایل‌های در حال ویرایش", color: "cyan", icon: "01" },
+    { id: "staging", title: "STAGING AREA", subtitle: "Snapshot بعدی", color: "amber", icon: "02" },
+    { id: "local", title: "LOCAL REPOSITORY", subtitle: "Commitهای ثبت‌شده", color: "violet", icon: "03" },
+    { id: "remote", title: "REMOTE REPOSITORY", subtitle: "تاریخچهٔ مشترک", color: "green", icon: "04" },
+  ];
+
+  return (
+    <section className="page-section state-page">
+      <SectionHead index="01" label="STATE PLAYGROUND" title="چهار در؛ یک مدل ذهنی واقعی" description="هر فایل دقیقاً در وضعیت مقصد می‌ماند تا دستور بعدی آن را جابه‌جا کند. از فرمان‌های آماده استفاده کن یا دستور خودت را در ترمینال بنویس." />
+      <Guide eyebrow="راهنمای استفاده" title="دستور بزن و مسیر فایل را ببین" text="این محیط Git واقعی اجرا نمی‌کند؛ رفتار مفهومی دستورها را به‌صورت امن و دیداری شبیه‌سازی می‌کند." steps={["یک دستور آماده را انتخاب کن یا در Terminal بنویس.", "حرکت فایل را بین چهار در دنبال کن.", "توضیح دقیق اثر دستور را زیر Terminal بخوان."]} />
+      <div className="portal-map">
+        <div className="flow-label add-flow">git add →</div><div className="flow-label commit-flow">git commit →</div><div className="flow-label push-flow">git push →</div>
+        {zones.map((zone) => (
+          <article className={`portal portal-${zone.color} ${activeMove === zone.id ? "receiving" : ""}`} key={zone.id}>
+            <div className="portal-number">{zone.icon}</div>
+            <div className="portal-arch"><span className="arch-light" /><div className="portal-core">
+              <div className="zone-files">
+                {files.filter((file) => file.zone === zone.id).map((file) => <div className="file-token" key={file.id}><i>◇</i><b>{file.name}</b><span>{zone.id}</span></div>)}
+                {!files.some((file) => file.zone === zone.id) && <p className="empty-zone">NO FILES YET</p>}
+              </div>
+            </div></div>
+            <h3>{zone.title}</h3><p>{zone.subtitle}</p>
+          </article>
+        ))}
+      </div>
+      <div className="lab-console">
+        <div className="console-main">
+          <div className="console-bar"><span><i /> SAFE SIMULATION TERMINAL</span><b>{files.length} FILE OBJECTS</b></div>
+          <form onSubmit={(event) => { event.preventDefault(); run(); }}><span>$</span><input dir="ltr" value={command} onChange={(event) => setCommand(event.target.value)} placeholder="type a Git command…" aria-label="Git command" /><button>RUN ↵</button></form>
+          <div className="command-effect"><b>STATE EFFECT</b><p>{message}</p></div>
+          <div className="preset-row"><span>SUGGESTED</span>{presets.map((preset) => <button onClick={() => run(preset)} key={preset}><code>{preset}</code></button>)}</div>
+        </div>
+        <aside><span>SESSION HISTORY</span>{history.length ? history.map((item, index) => <code key={`${item}-${index}`}>› {item}</code>) : <p>دستوری اجرا نشده است.</p>}<button onClick={() => { setFiles([{ id: 1, name: "app.js", zone: "working" }, { id: 2, name: "README.md", zone: "working" }, { id: 3, name: "style.css", zone: "working" }]); setHistory([]); setMessage("آزمایشگاه به وضعیت اولیه برگشت."); }}>RESET LAB</button></aside>
+      </div>
+    </section>
+  );
+}
+
+function GraphTab() {
+  const [graph, setGraph] = useState<GraphState>(initialGraph);
+  const [scenarioId, setScenarioId] = useState(graphScenarios[0].id);
+  const [executed, setExecuted] = useState(0);
+  const [custom, setCustom] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const scenario = graphScenarios.find((item) => item.id === scenarioId)!;
+  const lanes = useMemo(() => Array.from(new Set(["main", ...graph.nodes.map((node) => node.branch), ...Object.keys(graph.branches)])), [graph]);
+  const width = Math.max(1080, graph.nodes.length * 150 + 260);
+  const height = Math.max(400, lanes.length * 112 + 150);
+  const coords = (node: GraphNode) => ({ x: 120 + node.order * 145, y: 100 + lanes.indexOf(node.branch) * 112 });
+
+  const reset = (newScenario = scenarioId) => { setGraph(initialGraph()); setExecuted(0); setScenarioId(newScenario); };
+  const runCommand = (command: string) => setGraph((value) => executeGraphCommand(value, command));
+  const runNext = () => {
+    if (executed >= scenario.commands.length) return;
+    runCommand(scenario.commands[executed]);
+    setExecuted((value) => value + 1);
+  };
+  const buildAll = () => {
+    let result = initialGraph();
+    scenario.commands.forEach((command) => { result = executeGraphCommand(result, command); });
+    setGraph(result); setExecuted(scenario.commands.length);
+  };
+  const submitCustom = (event: FormEvent) => { event.preventDefault(); runCommand(custom); setCustom(""); };
+
+  return (
+    <section className="page-section graph-page">
+      <SectionHead index="02" label="INTERACTIVE HISTORY" title="BUILD A REAL GIT GRAPH" description="Branch بساز، روی هر شاخه چند Commit ثبت کن، بین شاخه‌ها جابه‌جا شو و نتیجهٔ Fast-forward، Three-way، Squash و Rebase را روی گراف ببین." />
+      <Guide eyebrow="راهنمای استفاده" title="فرمان را اجرا کن و اثرش را روی تاریخچه بخوان" text="هر Node یک Commit و هر خط رابطهٔ Parent است. رنگ مسیر، branch سازندهٔ commit را نشان می‌دهد." steps={["یک سناریوی آماده انتخاب کن.", "مرحله‌به‌مرحله یا کامل اجرا کن.", "برای تاریخچه‌های بلند با Zoom و Scroll جزئیات را بررسی کن."]} />
+      <div className="scenario-tabs">
+        {graphScenarios.map((item, index) => <button className={scenarioId === item.id ? "active" : ""} onClick={() => reset(item.id)} key={item.id}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{item.title}</b><small>{item.fa}</small></span><em>{item.commands.length} COMMANDS</em></button>)}
+      </div>
+      <div className="graph-workbench">
+        <div className="graph-toolbar">
+          <div><span>ACTIVE SCENARIO</span><h3>{scenario.title}</h3><p>{scenario.fa}</p></div>
+          <div className="graph-actions"><button onClick={runNext} disabled={executed >= scenario.commands.length}>RUN NEXT →</button><button className="bright" onClick={buildAll}>BUILD COMPLETE GRAPH</button><button onClick={() => reset()}>RESET</button></div>
+        </div>
+        <div className="command-sequence">
+          {scenario.commands.map((command, index) => <button className={index < executed ? "done" : index === executed ? "next" : ""} onClick={() => { if (index === executed) runNext(); }} key={`${command}-${index}`}><i>{index < executed ? "✓" : index + 1}</i><code>{command}</code></button>)}
+        </div>
+        <div className="graph-statusbar">
+          <p>HEAD → <b>{graph.current}</b><span>{graph.nodes.length} COMMIT NODES</span><span>{Object.keys(graph.branches).length} BRANCHES</span></p>
+          <div className="zoom-control"><span>GRAPH ZOOM</span><button onClick={() => setZoom((value) => Math.max(.65, +(value - .15).toFixed(2)))}>−</button><output>{Math.round(zoom * 100)}%</output><input type="range" min="65" max="180" value={zoom * 100} onChange={(event) => setZoom(+event.target.value / 100)} /><button onClick={() => setZoom((value) => Math.min(1.8, +(value + .15).toFixed(2)))}>+</button><button onClick={() => setZoom(1)}>100%</button></div>
+        </div>
+        <div className="graph-stage">
+          <svg viewBox={`0 0 ${width} ${height}`} style={{ width: width * zoom, height: height * zoom, minWidth: width * zoom, minHeight: height * zoom }} aria-label="Git commit graph">
+            <defs><filter id="glow"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+            {lanes.map((lane, index) => <g key={lane}><line className="lane-line" x1="60" x2={width - 40} y1={100 + index * 112} y2={100 + index * 112} /><text className="lane-name" x="50" y={76 + index * 112}>{lane}</text></g>)}
+            {graph.nodes.flatMap((node) => node.parents.map((parentId) => {
+              const parent = graph.nodes.find((item) => item.id === parentId); if (!parent) return null;
+              const a = coords(parent); const b = coords(node);
+              return <path className={`edge edge-${lanes.indexOf(node.branch) % 5}`} key={`${node.id}-${parentId}`} d={`M ${a.x} ${a.y} C ${a.x + 58} ${a.y}, ${b.x - 58} ${b.y}, ${b.x} ${b.y}`} />;
+            }))}
+            {graph.nodes.map((node) => { const point = coords(node); return <g className={`commit-node node-color-${lanes.indexOf(node.branch) % 5}`} transform={`translate(${point.x} ${point.y})`} key={node.id}><circle r="22" /><circle className="node-core" r="9" /><text className="node-hash" y="48">{node.id}</text><text className="node-message" y="68">{node.message.length > 22 ? `${node.message.slice(0, 21)}…` : node.message}</text></g>; })}
+            {Object.entries(graph.branches).map(([branch, head]) => { const node = graph.nodes.find((item) => item.id === head); if (!node) return null; const point = coords(node); return <g className="branch-pointer" transform={`translate(${point.x - 2} ${point.y - 47})`} key={branch}><rect x="-46" y="-16" width="92" height="25" rx="4" /><text y="2">{graph.current === branch ? "HEAD → " : ""}{branch}</text></g>; })}
+            {!graph.nodes.length && <g className="empty-graph"><circle cx="220" cy="100" r="23" /><text x="270" y="107">Run a commit command to create the first node</text></g>}
+          </svg>
+        </div>
+        <form className="custom-graph-command" onSubmit={submitCustom}><label><span>CUSTOM GRAPH BUILDER</span><small>commit · switch -c · switch · merge · merge --no-ff · merge --squash · rebase</small></label><div><b>$</b><input dir="ltr" value={custom} onChange={(event) => setCustom(event.target.value)} placeholder={'git commit -m "your message"'} /><button>EXECUTE ↵</button></div></form>
+      </div>
+    </section>
+  );
+}
+
+type QuizResult = { question: QuizQuestion; selected: number };
+
+function QuizTab({ setScore, setCelebration }: { setScore: React.Dispatch<React.SetStateAction<number>>; setCelebration: (value: Celebration) => void }) {
+  const [mode, setMode] = useState<"quiz" | "order">("quiz");
+  return (
+    <section className="page-section quiz-page">
+      <SectionHead index="03" label="ASSESSMENT LAB" title="QUIZ & COMMAND ORDER" description="دانش مفهومی را با آزمون بسنج یا دستورهای یک سناریوی واقعی را به ترتیب اجرایی درست بچین. هر دو مسیر امتیاز، جشن و بازخورد آموزشی دارند." />
+      <div className="mode-switch"><button className={mode === "quiz" ? "active" : ""} onClick={() => setMode("quiz")}><i>01</i><span><b>LEVELLED QUIZ</b><small>آزمون تصادفی و سطح‌بندی‌شده</small></span></button><button className={mode === "order" ? "active" : ""} onClick={() => setMode("order")}><i>02</i><span><b>PUT COMMANDS IN ORDER</b><small>۲۰ مأموریت اجرایی واقعی</small></span></button></div>
+      {mode === "quiz" ? <QuizMode setScore={setScore} setCelebration={setCelebration} /> : <OrderMode setScore={setScore} setCelebration={setCelebration} />}
+    </section>
+  );
+}
+
+function QuizMode({ setScore, setCelebration }: { setScore: React.Dispatch<React.SetStateAction<number>>; setCelebration: (value: Celebration) => void }) {
+  const [module, setModule] = useState(1);
+  const [level, setLevel] = useState<Level | "all">("all");
+  const pool = useMemo(() => quizQuestions.filter((item) => item.module === module && (level === "all" || item.level === level)), [module, level]);
+  const [count, setCount] = useState(10);
+  const [session, setSession] = useState<QuizQuestion[]>([]);
+  const [index, setIndex] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [results, setResults] = useState<QuizResult[]>([]);
+  const [complete, setComplete] = useState(false);
+  const maxCount = pool.length;
+  const safeCount = Math.min(count, maxCount);
+
+  const begin = () => { setSession(shuffle(pool).slice(0, safeCount)); setIndex(0); setSelected(null); setResults([]); setComplete(false); };
+  const answer = (option: number) => { if (selected !== null) return; setSelected(option); };
+  const next = () => {
+    if (selected === null) return;
+    const updated = [...results, { question: session[index], selected }];
+    setResults(updated);
+    if (index + 1 >= session.length) {
+      const correct = updated.filter((item) => item.selected === item.question.answer).length;
+      const xp = correct * 10;
+      setScore((value) => value + xp); setComplete(true);
+      setCelebration({ title: "آزمون تمام شد!", xp, subtitle: `${correct} پاسخ درست از ${updated.length} سؤال؛ گزارش دقیق اشتباهات پایین صفحه آماده است.` });
+    } else { setIndex((value) => value + 1); setSelected(null); }
+  };
+  const mistakes = results.filter((item) => item.selected !== item.question.answer);
+  const topics = Array.from(new Set(mistakes.map((item) => item.question.topic)));
+
+  if (!session.length) return (
+    <div className="quiz-setup">
+      <Guide eyebrow="تنظیم آزمون" title="فصل، سطح و تعداد را خودت انتخاب کن" text="هر بار سؤال‌ها از بانک همان فصل به‌صورت تصادفی انتخاب می‌شوند. بیشینهٔ تعداد با فیلتر انتخابی هماهنگ است." steps={["یکی از شش فصل را انتخاب کن.", "سطح مناسب را مشخص کن.", "تعداد دلخواه را تا سقف بانک سؤال تعیین و شروع کن."]} />
+      <div className="module-grid">{modules.map((item) => <button className={module === item.id ? "active" : ""} onClick={() => { setModule(item.id); setCount(10); }} key={item.id}><i>{String(item.id).padStart(2, "0")}</i><span><b>{item.en}</b><strong>{item.title}</strong><small>{item.description}</small></span><em>15 Q</em></button>)}</div>
+      <div className="quiz-controls">
+        <div><label>QUESTION LEVEL</label><div className="segmented">{(["all", "beginner", "intermediate", "challenge"] as const).map((item) => <button className={level === item ? "active" : ""} onClick={() => { setLevel(item); setCount(10); }} key={item}>{item.toUpperCase()}</button>)}</div></div>
+        <div className="count-control"><label>YOUR QUESTION COUNT <b>{safeCount}</b> / {maxCount}</label><input type="range" min="1" max={Math.max(1, maxCount)} value={safeCount || 1} onChange={(event) => setCount(+event.target.value)} /><div><button onClick={() => setCount(Math.min(5, maxCount))}>5</button><button onClick={() => setCount(Math.min(10, maxCount))}>10</button><button onClick={() => setCount(maxCount)}>MAX · {maxCount}</button></div></div>
+        <button className="start-quiz" disabled={!maxCount} onClick={begin}>GENERATE RANDOM QUIZ <span>→</span></button>
+      </div>
+    </div>
+  );
+
+  if (complete) {
+    const correct = results.length - mistakes.length;
+    const percent = Math.round((correct / results.length) * 100);
+    return (
+      <div className="result-report">
+        <div className="result-hero"><span>SESSION COMPLETE</span><h2>{percent}%</h2><strong>{correct} درست از {results.length} سؤال</strong><div className="result-bar"><i style={{ width: `${percent}%` }} /></div><button onClick={() => setSession([])}>BUILD ANOTHER QUIZ</button></div>
+        <div className="practice-card"><span>NEXT PRACTICE</span><h3>{mistakes.length ? "این موضوع‌ها را بیشتر تمرین کن" : "عالی بود؛ آمادهٔ سطح بعدی هستی"}</h3><div>{topics.length ? topics.map((topic) => <b key={topic}>{topic}</b>) : <b>NO WEAK TOPICS</b>}</div></div>
+        <div className="mistake-list"><h3>ANSWER REVIEW <span>{mistakes.length} اشتباه</span></h3>{mistakes.length ? mistakes.map((item, mistakeIndex) => <article key={item.question.id}><i>{String(mistakeIndex + 1).padStart(2, "0")}</i><div><h4>{item.question.prompt}</h4><p className="wrong">پاسخ شما: {item.question.options[item.selected]}</p><p className="correct">پاسخ درست: {item.question.options[item.question.answer]}</p><small>{item.question.explanation}</small></div></article>) : <div className="perfect">همهٔ جواب‌ها درست بود. هیچ اشتباهی برای مرور وجود ندارد.</div>}</div>
+      </div>
+    );
+  }
+
+  const question = session[index];
+  return (
+    <div className="question-stage">
+      <div className="question-progress"><span>QUESTION {index + 1} / {session.length}</span><div><i style={{ width: `${((index + 1) / session.length) * 100}%` }} /></div><b>{question.level.toUpperCase()}</b></div>
+      <article className="question-card"><div className="question-meta"><span>MODULE {String(question.module).padStart(2, "0")}</span><b>{question.topic}</b></div><h2>{question.prompt}</h2><div className="options">{question.options.map((option, optionIndex) => <button className={selected === null ? "" : optionIndex === question.answer ? "correct" : optionIndex === selected ? "wrong" : "muted"} onClick={() => answer(optionIndex)} key={option}><i>{String.fromCharCode(65 + optionIndex)}</i><span dir="auto">{option}</span></button>)}</div>{selected !== null && <div className={`answer-feedback ${selected === question.answer ? "ok" : "bad"}`}><strong>{selected === question.answer ? "درست گفتی!" : "این پاسخ درست نیست."}</strong><p>{question.explanation}</p></div>}<button className="next-question" disabled={selected === null} onClick={next}>{index + 1 === session.length ? "FINISH & SHOW REPORT" : "NEXT QUESTION"} →</button></article>
+    </div>
+  );
+}
+
+function OrderMode({ setScore, setCelebration }: { setScore: React.Dispatch<React.SetStateAction<number>>; setCelebration: (value: Celebration) => void }) {
+  const [missionId, setMissionId] = useState(1);
+  const mission = missions.find((item) => item.id === missionId)!;
+  const [ordered, setOrdered] = useState<string[]>(() => shuffle(mission.steps));
+  const [result, setResult] = useState<"idle" | "correct" | "wrong">("idle");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const choose = (id: number) => { const next = missions.find((item) => item.id === id)!; setMissionId(id); setOrdered(shuffle(next.steps)); setResult("idle"); };
+  const move = (from: number, to: number) => { setOrdered((items) => { const next = [...items]; const [picked] = next.splice(from, 1); next.splice(to, 0, picked); return next; }); setResult("idle"); };
+  const check = () => {
+    const correct = equivalentOrder(ordered, mission);
+    setResult(correct ? "correct" : "wrong");
+    if (correct) { const xp = mission.level === "challenge" ? 80 : mission.level === "intermediate" ? 55 : 35; setScore((value) => value + xp); setCelebration({ title: "ترتیب دستورها درست است!", xp, subtitle: `مأموریت «${mission.title}» با موفقیت کامل شد.` }); }
+  };
+
+  return (
+    <div className="order-lab">
+      <Guide eyebrow="راهنمای مأموریت" title="دستورهای به‌هم‌ریخته را به جریان اجرایی تبدیل کن" text="شمارهٔ کنار هر دستور جای فعلی آن است. کارت‌ها را Drag کن یا با فلش‌ها جابه‌جا کن، سپس پاسخ را بررسی کن." steps={["سطح و مأموریت را انتخاب کن.", "فقط دستورهای ضروری را مرتب کن.", "پاسخ را بررسی و ترتیب مرجع را مطالعه کن."]} />
+      <div className="mission-filter">{(["beginner", "intermediate", "challenge"] as Level[]).map((level) => <div key={level}><span>{level.toUpperCase()}</span>{missions.filter((item) => item.level === level).map((item) => <button className={missionId === item.id ? "active" : ""} onClick={() => choose(item.id)} key={item.id}>{String(item.id).padStart(2, "0")}</button>)}</div>)}</div>
+      <div className="mission-card">
+        <div className="mission-prompt"><div><span>MISSION {String(mission.id).padStart(2, "0")} · {mission.level.toUpperCase()}</span><h2>{mission.title}</h2><p>{mission.prompt}</p></div><aside><b>HINT</b><p>{mission.hint}</p></aside></div>
+        <div className="sortable-list">{ordered.map((command, index) => <div draggable onDragStart={() => setDragIndex(index)} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (dragIndex !== null) move(dragIndex, index); setDragIndex(null); }} className={dragIndex === index ? "dragging" : ""} key={`${command}-${index}`}><i>{String(index + 1).padStart(2, "0")}</i><span>⠿</span><code>{command}</code><nav><button disabled={index === 0} onClick={() => move(index, index - 1)}>↑</button><button disabled={index === ordered.length - 1} onClick={() => move(index, index + 1)}>↓</button></nav></div>)}</div>
+        <div className="mission-actions"><button onClick={() => { setOrdered(shuffle(mission.steps)); setResult("idle"); }}>SHUFFLE ↻</button><button className="check-order" onClick={check}>CHECK ORDER →</button></div>
+        {result !== "idle" && <div className={`order-result ${result}`}><strong>{result === "correct" ? "ترتیب درست است؛ آفرین!" : "هنوز ترتیب اجرای دستورها درست نیست."}</strong><p>{result === "correct" ? "جریان کامل شد. ترتیب مرجع را برای تثبیت مدل ذهنی مرور کن." : "ترتیب مرجع را ببین، دلیل تقدم هر مرحله را بررسی کن و دوباره بچین."}</p><div className="reference-answer"><span>CORRECT REFERENCE</span>{mission.steps.map((step, index) => <code key={step}><i>{index + 1}</i>{step}</code>)}</div></div>}
+      </div>
+    </div>
+  );
+}
+
+function RoadmapTab({ openTab }: { openTab: (tab: Tab) => void }) {
+  return (
+    <section className="page-section roadmap-page">
+      <SectionHead index="04" label="WORKSHOP PATH" title="نقشهٔ راه Git و GitHub" description="از مبانی و کار محلی شروع کن، بعد تاریخچهٔ شاخه‌ها و Remote را بفهم و در پایان وارد همکاری تیمی و اتوماسیون شو." />
+      <Guide eyebrow="نحوهٔ استفاده" title="هر ایستگاه را یاد بگیر، تمرین کن و بسنج" text="ترتیب فصل‌ها عمدی است. تا زمانی که State محلی را نفهمیده‌ای، Merge و Remote فقط مجموعه‌ای از دستورهای حفظی می‌مانند." steps={["مفهوم‌ها را در مسیر فصل بخوان.", "همان فصل را در State Lab یا Graph تمرین کن.", "آزمون ۱۵ سؤالی فصل را کامل کن."]} />
+      <div className="roadmap-track">
+        {modules.map((item, index) => <article key={item.id}><div className="road-index">{String(item.id).padStart(2, "0")}</div><div className="road-node"><img src="/bugcharm-logo.png" alt="" /></div><div className="road-copy"><span>{item.en}</span><h2>{item.title}</h2><p>{item.description}</p><button onClick={() => openTab(index < 2 ? "playground" : index === 2 ? "graph" : "quiz")}>OPEN PRACTICE →</button></div></article>)}
+      </div>
+      <div className="outcomes"><span>COURSE OUTCOMES</span><div><article><b>01</b><h3>تسلط عملی بر Git</h3><p>به‌جای حفظ دستور، تغییر State را پیش‌بینی می‌کنی.</p></article><article><b>02</b><h3>تاریخچهٔ حرفه‌ای</h3><p>Branch، Merge و Rebase را آگاهانه انتخاب می‌کنی.</p></article><article><b>03</b><h3>همکاری در GitHub</h3><p>PR، Review و Conflict را در جریان تیمی مدیریت می‌کنی.</p></article><article><b>04</b><h3>آمادگی پروژهٔ واقعی</h3><p>Workflow تست، Build و Publish را می‌سازی.</p></article></div></div>
+    </section>
+  );
+}
+
+function ReferenceTab() {
+  const [query, setQuery] = useState("");
+  const filtered = commandGroups.map((group) => ({ ...group, commands: group.commands.filter(([command, description]) => `${command} ${description}`.toLowerCase().includes(query.toLowerCase())) })).filter((group) => group.commands.length);
+  const [copied, setCopied] = useState("");
+  const copy = async (command: string) => { await navigator.clipboard.writeText(command); setCopied(command); window.setTimeout(() => setCopied(""), 1200); };
+  return (
+    <section className="page-section reference-page">
+      <SectionHead index="05" label="COMMAND REFERENCE" title="مرجع قابل کپی دستورات دوره" description="دستور را جست‌وجو کن، اثر دقیقش را بخوان و با یک کلیک کپی کن. دستورهای خطرناک با هشدار روشن مشخص شده‌اند." />
+      <Guide eyebrow="راهنمای مرجع" title="از دستور به مدل ذهنی برس" text="قبل از اجرا وضعیت فعلی را با git status بررسی کن. به‌خصوص reset --hard و force push را فقط وقتی اثرشان را دقیق می‌دانی اجرا کن." steps={["نام یا کاربرد دستور را جست‌وجو کن.", "توضیح فارسی و Syntax را بخوان.", "کپی کن و در Repository آزمایشی اجرا کن."]} />
+      <label className="command-search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands or Persian descriptions…" /></label>
+      <div className="command-groups">{filtered.map((group, groupIndex) => <article key={group.title}><header><i>{String(groupIndex + 1).padStart(2, "0")}</i><div><span>{group.title}</span><p>{group.description}</p></div><b>{group.commands.length} COMMANDS</b></header><div>{group.commands.map(([command, description]) => <div className={command.includes("--hard") || command.includes("force") ? "danger-command" : ""} key={command}><section><code dir="ltr">{command}</code>{(command.includes("--hard") || command.includes("force")) && <em>CAUTION</em>}<p>{description}</p></section><button onClick={() => copy(command)}>{copied === command ? "COPIED ✓" : "COPY"}</button></div>)}</div></article>)}</div>
+    </section>
   );
 }

@@ -1,42 +1,37 @@
-# Git State Lab — Vercel Ready
+# Git State Lab — BugCharm
 
-نسخهٔ Vite + React و آمادهٔ دیپلوی مستقیم روی Vercel.
+آزمایشگاه تعاملی کارگاه Git و GitHub، طراحی و تدریس شکوفه اکبری.
 
-## دیپلوی بدون اجرای npm روی Windows
-
-1. همهٔ فایل‌ها را در یک Repository روی GitHub قرار دهید.
-2. وارد [vercel.com/new](https://vercel.com/new) شوید.
-3. حساب GitHub را متصل و Repository را Import کنید.
-4. Vercel به‌صورت خودکار Vite را تشخیص می‌دهد.
-5. روی **Deploy** کلیک کنید.
-
-تنظیمات آماده هستند:
-
-```text
-Build Command: npm run build
-Output Directory: dist
-```
-
-هر Push بعدی به `main` به‌صورت خودکار Deploy می‌شود.
-
-## اجرای محلی اختیاری
+## اجرا روی سیستم
 
 ```bash
-npm ci
+npm install
 npm run dev
 ```
 
-## امکانات نسخهٔ بازطراحی‌شده
+## Build
 
-- رابط اصلی انگلیسی و LTR برای جلوگیری از به‌هم‌ریختگی جهت‌ها
-- توضیحات، صورت مأموریت و آزمون‌ها به فارسی با فونت Vazir داخلی
-- Hero خوانا با Graph تزئینی کدنویسی‌شده و بدون تصویر درها
-- Graph Builder مستقل با Commit، ساخت و تعویض Branch و تاریخچهٔ چندشاخه
-- سناریوهای Fast-forward، Three-way، `--no-ff`، Squash و Rebase
-- امکان ساخت Graph دلخواه با پیام Commit و نام Branch سفارشی
-- ۶ آزمون مستقل مطابق سرفصل‌های دوره، هرکدام شامل ۱۵ سؤال در سه سطح
-- ۲۰ مأموریت مرتب‌سازی Workflow در سه سطح؛ دستورها به‌هم‌ریخته‌اند و باید در Slotهای شماره‌دار قرار بگیرند
-- مرجع بزرگ، قابل جست‌وجو و قابل کپی دستورها
-- راهنمای فارسی استفاده در ابتدای هر بخش
-- معرفی «شکوفه اکبری» به‌عنوان مدرس ورکشاپ
-- طراحی واکنش‌گرا برای دسکتاپ، تبلت و موبایل
+```bash
+npm run build
+```
+
+## Deploy روی Vercel
+
+1. پوشه را در GitHub قرار دهید.
+2. در Vercel گزینهٔ **Add New Project** را بزنید و Repository را Import کنید.
+3. Framework به‌صورت خودکار **Vite** تشخیص داده می‌شود.
+4. Build Command: `npm run build`
+5. Output Directory: `dist`
+
+## محیط‌ها
+
+- Home: معرفی و مسیرهای سریع
+- State Lab: چهار در تعاملی Working، Staging، Local و Remote
+- Git Graph: سناریوها، Custom Builder، Merge/Rebase و Zoom از 65 تا 180 درصد
+- Quiz + Order: ۹۰ سؤال، انتخاب تعداد تصادفی، ۲۰ مأموریت ترتیب دستور و گزارش آموزشی
+- Roadmap: شش فصل کارگاه
+- Commands: مرجع قابل‌جست‌وجو و قابل‌کپی
+
+## مدرس
+
+شکوفه اکبری — [BugCharm](https://www.bugcharm.com)
