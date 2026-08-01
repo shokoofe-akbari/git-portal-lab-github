@@ -2,26 +2,25 @@
 
 آزمایشگاه تعاملی کارگاه Git و GitHub، طراحی و تدریس شکوفه اکبری.
 
-## اجرا روی سیستم
+## انتشار بدون اجرای محلی
 
-```bash
-npm install
-npm run dev
+این نسخه برای Build مستقیم روی Vercel تنظیم شده است و لازم نیست پیش از انتشار روی سیستم شخصی اجرا شود. فایل `vercel.json` به‌صورت صریح Framework، دستور نصب، دستور Build و پوشهٔ خروجی را تعیین می‌کند.
+
+1. محتویات این پوشه را در ریشهٔ Repository قرار دهید؛ `package.json` و `vercel.json` باید مستقیماً در صفحهٔ اول Repository دیده شوند.
+2. تغییرات را روی شاخهٔ متصل به Vercel، معمولاً `main`، Commit کنید.
+3. در Vercel از مسیر **Project → Settings → Build and Deployment** مقدار **Framework Preset** را یک‌بار روی **Vite** قرار دهید.
+4. در **Root Directory** مقدار `./` را انتخاب کنید.
+5. آخرین Commit را Redeploy کنید. Pushهای بعدی به‌صورت خودکار Deploy می‌شوند.
+
+تنظیمات قطعی این پروژه:
+
+```text
+Framework: Vite
+Install Command: npm install
+Build Command: npm run build
+Output Directory: dist
+Root Directory: ./
 ```
-
-## Build
-
-```bash
-npm run build
-```
-
-## Deploy روی Vercel
-
-1. پوشه را در GitHub قرار دهید.
-2. در Vercel گزینهٔ **Add New Project** را بزنید و Repository را Import کنید.
-3. Framework به‌صورت خودکار **Vite** تشخیص داده می‌شود.
-4. Build Command: `npm run build`
-5. Output Directory: `dist`
 
 ## محیط‌ها
 
