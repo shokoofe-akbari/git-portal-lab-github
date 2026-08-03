@@ -97,11 +97,19 @@ body::before {
 .hero-watermark { position: absolute; width: 470px; height: 470px; object-fit: contain; right: 2%; top: 5%; opacity: .035; filter: grayscale(1); }
 .mini-graph { position: absolute; inset: 10% 0 10% 7%; border: 1px solid rgba(83,255,154,.15); background: linear-gradient(145deg,rgba(8,25,18,.8),rgba(1,7,5,.68)); box-shadow: inset 0 0 80px rgba(22,230,111,.04),0 30px 100px rgba(0,0,0,.3); overflow: hidden; }
 .mini-graph::before { content: "COMMIT GRAPH / LIVE HISTORY"; position: absolute; left: 24px; top: 20px; color: #7eaa94; font: 800 13px var(--mono); letter-spacing: .11em; }
-.mini-graph .node { position: absolute; z-index: 2; width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--green); background: #07140e; color: #d9ffe9; font: 800 14px var(--mono); box-shadow: 0 0 0 8px rgba(81,249,156,.07),0 0 24px rgba(81,249,156,.25); }
-.mini-graph .n1 { left: 12%; top: 55%; }.mini-graph .n2 { left: 35%; top: 55%; }.mini-graph .n3 { left: 57%; top: 29%; border-color: #a878ff; }.mini-graph .n4 { left: 79%; top: 55%; }
-.mini-graph .line { position: absolute; height: 4px; background: var(--green); transform-origin: left; box-shadow: 0 0 14px rgba(85,247,155,.6); }
-.mini-graph .l1 { width: 24%; left: 16%; top: 60%; }.mini-graph .l2 { width: 27%; left: 39%; top: 58%; transform: rotate(-24deg); background: #a878ff; }.mini-graph .l3 { width: 28%; left: 61%; top: 35%; transform: rotate(24deg); background: #a878ff; }
-.branch-label { position: absolute; padding: 8px 13px; border: 1px solid var(--green); background: #08160f; color: var(--green); font: 700 13px var(--mono); }.main-label { left: 75%; top: 66%; }.feature-label { left: 51%; top: 16%; border-color: #a878ff; color: #bf9dff; }
+.mini-graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero-edge { fill: none; stroke-width: 4.5; opacity: .85; stroke-linecap: round; stroke-dasharray: 7 7; animation: hero-flow 2.6s linear infinite; }
+.hero-edge-main { stroke: var(--green); filter: drop-shadow(0 0 6px rgba(85,247,155,.55)); }
+.hero-edge-feature { stroke: #a878ff; filter: drop-shadow(0 0 6px rgba(168,120,255,.55)); }
+@keyframes hero-flow { to { stroke-dashoffset: -140; } }
+.hero-commit circle { fill: #07140e; stroke: var(--green); stroke-width: 4; filter: url(#heroGlow); }
+.hero-commit .hero-commit-core { fill: #d9ffe9; stroke: none; filter: none; }
+.hero-commit text { fill: #d9ffe9; text-anchor: middle; dominant-baseline: middle; font: 800 18px var(--mono); }
+.hero-commit-feature circle { stroke: #a878ff; }
+.hero-commit-head circle { stroke: var(--green); stroke-width: 5; }
+.hero-branch-tag rect { fill: #08160f; stroke: var(--green); stroke-width: 1.5; }
+.hero-branch-tag text { fill: var(--green); text-anchor: middle; dominant-baseline: middle; font: 700 15px var(--mono); }
+.hero-branch-tag-feature rect { stroke: #a878ff; } .hero-branch-tag-feature text { fill: #bf9dff; }
 .terminal-card { position: absolute; z-index: 3; left: -3%; bottom: 5%; width: 61%; padding: 20px 23px; background: #030906; border: 1px solid rgba(255,195,27,.4); box-shadow: 0 25px 70px rgba(0,0,0,.6); }
 .terminal-card > span { display: block; margin-bottom: 20px; color: #8b9d94; font: 800 12px var(--mono); letter-spacing: .1em; }.terminal-card code { display: block; color: #fff; font-size: 16px; font-weight: 700; }.terminal-card code i { color: var(--yellow); font-style: normal; }.terminal-card p { margin: 17px 0 0; color: #9db1a7; font-size: 16px; }.terminal-card p b { color: var(--yellow); margin: 0 10px; }
 

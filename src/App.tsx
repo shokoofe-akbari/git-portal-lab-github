@@ -283,9 +283,23 @@ function HomeTab({ openTab }: { openTab: (tab: Tab) => void }) {
       </div>
       <div className="hero-visual" aria-hidden="true">
         <div className="mini-graph">
-          <span className="line l1" /><span className="line l2" /><span className="line l3" />
-          <i className="node n1">A</i><i className="node n2">B</i><i className="node n3">C</i><i className="node n4">M</i>
-          <b className="branch-label main-label">main</b><b className="branch-label feature-label">feature</b>
+          <svg viewBox="0 0 640 380" className="mini-graph-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <defs>
+              <filter id="heroGlow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            <path className="hero-edge hero-edge-main" d="M 80 300 C 150 300, 160 300, 230 300" />
+            <path className="hero-edge hero-edge-main" d="M 230 300 C 320 300, 480 300, 570 300" />
+            <path className="hero-edge hero-edge-feature" d="M 230 300 C 320 300, 320 100, 410 100" />
+            <path className="hero-edge hero-edge-feature" d="M 410 100 C 500 100, 480 300, 570 300" />
+            <g className="hero-commit" transform="translate(80,300)"><circle r="25" /><circle className="hero-commit-core" r="9" /><text y="6">A</text></g>
+            <g className="hero-commit" transform="translate(230,300)"><circle r="25" /><circle className="hero-commit-core" r="9" /><text y="6">B</text></g>
+            <g className="hero-commit hero-commit-feature" transform="translate(410,100)"><circle r="25" /><circle className="hero-commit-core" r="9" /><text y="6">C</text></g>
+            <g className="hero-commit hero-commit-head" transform="translate(570,300)"><circle r="25" /><circle className="hero-commit-core" r="9" /><text y="6">M</text></g>
+            <g className="hero-branch-tag hero-branch-tag-feature" transform="translate(408,48)"><rect x="-52" y="-14" width="104" height="28" rx="6" /><text y="5">feature</text></g>
+            <g className="hero-branch-tag hero-branch-tag-main" transform="translate(566,248)"><rect x="-59" y="-14" width="118" height="28" rx="6" /><text y="5">HEAD → main</text></g>
+          </svg>
         </div>
         <div className="terminal-card"><span>STATE TRANSITION</span><code><i>$</i> git add app.js</code><p>working tree <b>→</b> staging area</p></div>
         <img className="hero-watermark" src="/bugcharm-logo.png" alt="" />
