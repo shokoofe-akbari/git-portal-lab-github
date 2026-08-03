@@ -10,10 +10,10 @@ type Celebration = { title: string; xp: number; subtitle: string } | null;
 
 const tabs: { id: Tab; label: string; fa: string; icon: string }[] = [
   { id: "home", label: "HOME", fa: "شروع", icon: "⌂" },
-  { id: "playground", label: "STATE LAB", fa: "چهار در", icon: "◫" },
+  { id: "roadmap", label: "ROADMAP", fa: "مسیر", icon: "↗" },
+  { id: "playground", label: "STATE LAB", fa: "آزمایشگاه", icon: "◫" },
   { id: "graph", label: "GIT GRAPH", fa: "گراف", icon: "⑂" },
   { id: "quiz", label: "QUIZ + ORDER", fa: "آزمون", icon: "✓" },
-  { id: "roadmap", label: "ROADMAP", fa: "مسیر", icon: "↗" },
   { id: "reference", label: "COMMANDS", fa: "دستورات", icon: ">_" },
 ];
 
@@ -330,7 +330,7 @@ function PlaygroundTab({ setScore }: { setScore: React.Dispatch<React.SetStateAc
   const run = (input = command) => {
     const raw = normalizeCommand(input);
     if (!raw) return;
-    let result = "این دستور وضعیت فایل‌های چهار در را تغییر نمی‌دهد، اما در تاریخچه ثبت شد.";
+    let result = "این دستور وضعیت فایل‌ها را تغییر نمی‌دهد؛ فقط در تاریخچه ثبت شد.";
     if (/^touch\s+/.test(raw)) {
       const name = raw.split(" ")[1];
       setFiles((current) => [...current, { id: nextId.current++, name, zone: "working" }]);
@@ -371,8 +371,8 @@ function PlaygroundTab({ setScore }: { setScore: React.Dispatch<React.SetStateAc
 
   return (
     <section className="page-section state-page">
-      <SectionHead index="01" label="STATE PLAYGROUND" title="چهار در؛ یک مدل ذهنی واقعی" description="هر فایل دقیقاً در وضعیت مقصد می‌ماند تا دستور بعدی آن را جابه‌جا کند. از فرمان‌های آماده استفاده کن یا دستور خودت را در ترمینال بنویس." />
-      <Guide eyebrow="راهنمای استفاده" title="دستور بزن و مسیر فایل را ببین" text="این محیط Git واقعی اجرا نمی‌کند؛ رفتار مفهومی دستورها را به‌صورت امن و دیداری شبیه‌سازی می‌کند." steps={["یک دستور آماده را انتخاب کن یا در Terminal بنویس.", "حرکت فایل را بین چهار در دنبال کن.", "توضیح دقیق اثر دستور را زیر Terminal بخوان."]} />
+      <SectionHead index="02" label="STATE PLAYGROUND" title="آزمایشگاه وضعیت؛ یک مدل ذهنی واقعی" description="هر فایل دقیقاً در وضعیت مقصد می‌ماند تا دستور بعدی آن را جابه‌جا کند. از فرمان‌های آماده استفاده کن یا دستور خودت را در ترمینال بنویس." />
+      <Guide eyebrow="راهنمای استفاده" title="دستور بزن و مسیر فایل را ببین" text="این محیط Git واقعی را اجرا نمی‌کند؛ فقط رفتار مفهومی دستورها را امن و به‌صورت دیداری شبیه‌سازی می‌کند." steps={["یک دستور آماده را انتخاب کن یا در Terminal بنویس.", "جابه‌جایی فایل را بین چهار بخش آزمایشگاه دنبال کن.", "توضیح دقیق اثر دستور را زیر Terminal بخوان."]} />
       <div className="portal-map">
         <div className="flow-label add-flow">git add →</div><div className="flow-label commit-flow">git commit →</div><div className="flow-label push-flow">git push →</div>
         {zones.map((zone) => (
@@ -395,7 +395,7 @@ function PlaygroundTab({ setScore }: { setScore: React.Dispatch<React.SetStateAc
           <div className="command-effect"><b>STATE EFFECT</b><p>{message}</p></div>
           <div className="preset-row"><span>SUGGESTED</span>{presets.map((preset) => <button onClick={() => run(preset)} key={preset}><code>{preset}</code></button>)}</div>
         </div>
-        <aside><span>SESSION HISTORY</span>{history.length ? history.map((item, index) => <code key={`${item}-${index}`}>› {item}</code>) : <p>دستوری اجرا نشده است.</p>}<button onClick={() => { setFiles([{ id: 1, name: "app.js", zone: "working" }, { id: 2, name: "README.md", zone: "working" }, { id: 3, name: "style.css", zone: "working" }]); setHistory([]); setMessage("آزمایشگاه به وضعیت اولیه برگشت."); }}>RESET LAB</button></aside>
+        <aside><span>SESSION HISTORY</span>{history.length ? history.map((item, index) => <code key={`${item}-${index}`}>› {item}</code>) : <p>هنوز دستوری اجرا نکرده‌ای.</p>}<button onClick={() => { setFiles([{ id: 1, name: "app.js", zone: "working" }, { id: 2, name: "README.md", zone: "working" }, { id: 3, name: "style.css", zone: "working" }]); setHistory([]); setMessage("آزمایشگاه به وضعیت اولیه برگشت."); }}>RESET LAB</button></aside>
       </div>
     </section>
   );
@@ -429,7 +429,7 @@ function GraphTab() {
 
   return (
     <section className="page-section graph-page">
-      <SectionHead index="02" label="INTERACTIVE HISTORY" title="BUILD A REAL GIT GRAPH" description="Branch بساز، روی هر شاخه چند Commit ثبت کن، بین شاخه‌ها جابه‌جا شو و نتیجهٔ Fast-forward، Three-way، Squash و Rebase را روی گراف ببین." />
+      <SectionHead index="03" label="INTERACTIVE HISTORY" title="BUILD A REAL GIT GRAPH" description="Branch بساز، روی هر شاخه چند Commit ثبت کن، بین شاخه‌ها جابه‌جا شو و نتیجهٔ Fast-forward، Three-way، Squash و Rebase را روی گراف ببین." />
       <Guide eyebrow="راهنمای استفاده" title="فرمان را اجرا کن و اثرش را روی تاریخچه بخوان" text="هر Node یک Commit و هر خط رابطهٔ Parent است. رنگ مسیر، branch سازندهٔ commit را نشان می‌دهد." steps={["یک سناریوی آماده انتخاب کن.", "مرحله‌به‌مرحله یا کامل اجرا کن.", "برای تاریخچه‌های بلند با Zoom و Scroll جزئیات را بررسی کن."]} />
       <div className="scenario-tabs">
         {graphScenarios.map((item, index) => <button className={scenarioId === item.id ? "active" : ""} onClick={() => reset(item.id)} key={item.id}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{item.title}</b><small>{item.fa}</small></span><em>{item.commands.length} COMMANDS</em></button>)}
@@ -472,7 +472,7 @@ function QuizTab({ setScore, setCelebration }: { setScore: React.Dispatch<React.
   const [mode, setMode] = useState<"quiz" | "order">("quiz");
   return (
     <section className="page-section quiz-page">
-      <SectionHead index="03" label="ASSESSMENT LAB" title="QUIZ & COMMAND ORDER" description="دانش مفهومی را با آزمون بسنج یا دستورهای یک سناریوی واقعی را به ترتیب اجرایی درست بچین. هر دو مسیر امتیاز، جشن و بازخورد آموزشی دارند." />
+      <SectionHead index="04" label="ASSESSMENT LAB" title="QUIZ & COMMAND ORDER" description="دانش مفهومی را با آزمون بسنج یا دستورهای یک سناریوی واقعی را به ترتیب اجرایی درست بچین. هر دو مسیر امتیاز، جشن و بازخورد آموزشی دارند." />
       <div className="mode-switch"><button className={mode === "quiz" ? "active" : ""} onClick={() => setMode("quiz")}><i>01</i><span><b>LEVELLED QUIZ</b><small>آزمون تصادفی و سطح‌بندی‌شده</small></span></button><button className={mode === "order" ? "active" : ""} onClick={() => setMode("order")}><i>02</i><span><b>PUT COMMANDS IN ORDER</b><small>۲۰ مأموریت اجرایی واقعی</small></span></button></div>
       {mode === "quiz" ? <QuizMode setScore={setScore} setCelebration={setCelebration} /> : <OrderMode setScore={setScore} setCelebration={setCelebration} />}
     </section>
@@ -510,7 +510,7 @@ function QuizMode({ setScore, setCelebration }: { setScore: React.Dispatch<React
 
   if (!session.length) return (
     <div className="quiz-setup">
-      <Guide eyebrow="تنظیم آزمون" title="فصل، سطح و تعداد را خودت انتخاب کن" text="هر بار سؤال‌ها از بانک همان فصل به‌صورت تصادفی انتخاب می‌شوند. بیشینهٔ تعداد با فیلتر انتخابی هماهنگ است." steps={["یکی از شش فصل را انتخاب کن.", "سطح مناسب را مشخص کن.", "تعداد دلخواه را تا سقف بانک سؤال تعیین و شروع کن."]} />
+      <Guide eyebrow="تنظیم آزمون" title="فصل، سطح و تعداد را خودت انتخاب کن" text="هر بار سؤال‌ها از بانک همان فصل به‌صورت تصادفی انتخاب می‌شوند. بیشترین تعداد ممکن با فیلتر انتخابی هماهنگ است." steps={["یکی از شش فصل را انتخاب کن.", "سطح مناسب را مشخص کن.", "تعداد دلخواه را تا سقف بانک سؤال تعیین و شروع کن."]} />
       <div className="module-grid">{modules.map((item) => <button className={module === item.id ? "active" : ""} onClick={() => { setModule(item.id); setCount(10); }} key={item.id}><i>{String(item.id).padStart(2, "0")}</i><span><b>{item.en}</b><strong>{item.title}</strong><small>{item.description}</small></span><em>15 Q</em></button>)}</div>
       <div className="quiz-controls">
         <div><label>QUESTION LEVEL</label><div className="segmented">{(["all", "beginner", "intermediate", "challenge"] as const).map((item) => <button className={level === item ? "active" : ""} onClick={() => { setLevel(item); setCount(10); }} key={item}>{item.toUpperCase()}</button>)}</div></div>
@@ -527,7 +527,7 @@ function QuizMode({ setScore, setCelebration }: { setScore: React.Dispatch<React
       <div className="result-report">
         <div className="result-hero"><span>SESSION COMPLETE</span><h2>{percent}%</h2><strong>{correct} درست از {results.length} سؤال</strong><div className="result-bar"><i style={{ width: `${percent}%` }} /></div><button onClick={() => setSession([])}>BUILD ANOTHER QUIZ</button></div>
         <div className="practice-card"><span>NEXT PRACTICE</span><h3>{mistakes.length ? "این موضوع‌ها را بیشتر تمرین کن" : "عالی بود؛ آمادهٔ سطح بعدی هستی"}</h3><div>{topics.length ? topics.map((topic) => <b key={topic}>{topic}</b>) : <b>NO WEAK TOPICS</b>}</div></div>
-        <div className="mistake-list"><h3>ANSWER REVIEW <span>{mistakes.length} اشتباه</span></h3>{mistakes.length ? mistakes.map((item, mistakeIndex) => <article key={item.question.id}><i>{String(mistakeIndex + 1).padStart(2, "0")}</i><div><h4>{item.question.prompt}</h4><p className="wrong">پاسخ شما: {item.question.options[item.selected]}</p><p className="correct">پاسخ درست: {item.question.options[item.question.answer]}</p><small>{item.question.explanation}</small></div></article>) : <div className="perfect">همهٔ جواب‌ها درست بود. هیچ اشتباهی برای مرور وجود ندارد.</div>}</div>
+        <div className="mistake-list"><h3>ANSWER REVIEW <span>{mistakes.length} اشتباه</span></h3>{mistakes.length ? mistakes.map((item, mistakeIndex) => <article key={item.question.id}><i>{String(mistakeIndex + 1).padStart(2, "0")}</i><div><h4>{item.question.prompt}</h4><p className="wrong">پاسخ شما: {item.question.options[item.selected]}</p><p className="correct">پاسخ درست: {item.question.options[item.question.answer]}</p><small>{item.question.explanation}</small></div></article>) : <div className="perfect">آفرین! همهٔ پاسخ‌ها درست بود و چیزی برای مرور نمانده.</div>}</div>
       </div>
     );
   }
@@ -536,7 +536,7 @@ function QuizMode({ setScore, setCelebration }: { setScore: React.Dispatch<React
   return (
     <div className="question-stage">
       <div className="question-progress"><span>QUESTION {index + 1} / {session.length}</span><div><i style={{ width: `${((index + 1) / session.length) * 100}%` }} /></div><b>{question.level.toUpperCase()}</b></div>
-      <article className="question-card"><div className="question-meta"><span>MODULE {String(question.module).padStart(2, "0")}</span><b>{question.topic}</b></div><h2>{question.prompt}</h2><div className="options">{question.options.map((option, optionIndex) => <button className={selected === null ? "" : optionIndex === question.answer ? "correct" : optionIndex === selected ? "wrong" : "muted"} onClick={() => answer(optionIndex)} key={option}><i>{String.fromCharCode(65 + optionIndex)}</i><span dir="auto">{option}</span></button>)}</div>{selected !== null && <div className={`answer-feedback ${selected === question.answer ? "ok" : "bad"}`}><strong>{selected === question.answer ? "درست گفتی!" : "این پاسخ درست نیست."}</strong><p>{question.explanation}</p></div>}<button className="next-question" disabled={selected === null} onClick={next}>{index + 1 === session.length ? "FINISH & SHOW REPORT" : "NEXT QUESTION"} →</button></article>
+      <article className="question-card"><div className="question-meta"><span>MODULE {String(question.module).padStart(2, "0")}</span><b>{question.topic}</b></div><h2>{question.prompt}</h2><div className="options">{question.options.map((option, optionIndex) => <button className={selected === null ? "" : optionIndex === question.answer ? "correct" : optionIndex === selected ? "wrong" : "muted"} onClick={() => answer(optionIndex)} key={option}><i>{String.fromCharCode(65 + optionIndex)}</i><span dir="auto">{option}</span></button>)}</div>{selected !== null && <div className={`answer-feedback ${selected === question.answer ? "ok" : "bad"}`}><strong>{selected === question.answer ? "درست گفتی!" : "این‌بار درست نشد."}</strong><p>{question.explanation}</p></div>}<button className="next-question" disabled={selected === null} onClick={next}>{index + 1 === session.length ? "FINISH & SHOW REPORT" : "NEXT QUESTION"} →</button></article>
     </div>
   );
 }
@@ -572,7 +572,7 @@ function OrderMode({ setScore, setCelebration }: { setScore: React.Dispatch<Reac
 function RoadmapTab({ openTab }: { openTab: (tab: Tab) => void }) {
   return (
     <section className="page-section roadmap-page">
-      <SectionHead index="04" label="WORKSHOP PATH" title="نقشهٔ راه Git و GitHub" description="از مبانی و کار محلی شروع کن، بعد تاریخچهٔ شاخه‌ها و Remote را بفهم و در پایان وارد همکاری تیمی و اتوماسیون شو." />
+      <SectionHead index="01" label="WORKSHOP PATH" title="نقشهٔ راه Git و GitHub" description="از مبانی و کار محلی شروع کن، بعد تاریخچهٔ شاخه‌ها و Remote را بفهم و در پایان وارد همکاری تیمی و اتوماسیون شو." />
       <Guide eyebrow="نحوهٔ استفاده" title="هر ایستگاه را یاد بگیر، تمرین کن و بسنج" text="ترتیب فصل‌ها عمدی است. تا زمانی که State محلی را نفهمیده‌ای، Merge و Remote فقط مجموعه‌ای از دستورهای حفظی می‌مانند." steps={["مفهوم‌ها را در مسیر فصل بخوان.", "همان فصل را در State Lab یا Graph تمرین کن.", "آزمون ۱۵ سؤالی فصل را کامل کن."]} />
       <div className="roadmap-track">
         {modules.map((item, index) => <article key={item.id}><div className="road-index">{String(item.id).padStart(2, "0")}</div><div className="road-node"><img src="/bugcharm-logo.png" alt="" /></div><div className="road-copy"><span>{item.en}</span><h2>{item.title}</h2><p>{item.description}</p><button onClick={() => openTab(index < 2 ? "playground" : index === 2 ? "graph" : "quiz")}>OPEN PRACTICE →</button></div></article>)}

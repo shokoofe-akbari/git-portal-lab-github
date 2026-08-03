@@ -25,10 +25,10 @@ Root Directory: ./
 ## محیط‌ها
 
 - Home: معرفی و مسیرهای سریع
-- State Lab: چهار در تعاملی Working، Staging، Local و Remote
+- Roadmap: نقشهٔ راه شش‌فصلی کارگاه
+- State Lab: آزمایشگاه تعاملی وضعیت فایل بین Working، Staging، Local و Remote
 - Git Graph: سناریوها، Custom Builder، Merge/Rebase و Zoom از 65 تا 180 درصد
 - Quiz + Order: ۹۰ سؤال، انتخاب تعداد تصادفی، ۲۰ مأموریت ترتیب دستور و گزارش آموزشی
-- Roadmap: شش فصل کارگاه
 - Commands: مرجع قابل‌جست‌وجو و قابل‌کپی
 
 ## مدرس
